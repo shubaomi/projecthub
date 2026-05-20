@@ -209,8 +209,8 @@ Body:
 App
 ├── Sidebar
 │   ├── Logo
-│   ├── CustomCategoryList
-│   ├── TechStackList
+│   ├── CustomCategoryList        ← 统一滚动区，拖拽排序，点击筛选
+│   ├── TechStackList             ← 可折叠收起，有自定义分类时默认收起
 │   └── SettingsButton
 ├── MainContent
 │   ├── SearchHeader
@@ -237,7 +237,7 @@ App
 │   └── ActionButtons
 └── SettingsPanel (modal)
     ├── ScanDirectoryEditor
-    ├── CustomCategoryEditor
+    ├── CustomCategoryEditor           ← 行内重命名 + 拖拽排序 + GripVertical 手柄
     └── LanguageSelector
 ```
 
@@ -314,6 +314,7 @@ App
 | AC-LIST-03 | 每个项目卡片展示 README 前 200 字符摘要 |
 | AC-LIST-04 | 项目为空时展示空状态，含引导文案 |
 | AC-LIST-05 | 侧边栏按项目类型动态生成分类标签，显示各类型项目数 |
+| AC-LIST-06 | 项目列表默认按 `lastModified` 降序排序（最近更新排前），相同时间按名称升序 |
 
 ### 9.3 搜索与筛选 (AC-SEARCH)
 

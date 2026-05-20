@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'motion/react'
-import { useState, useEffect } from 'react'
-import { X, Plus, Trash2, Palette, Globe } from 'lucide-react'
+import { useState, useEffect, type DragEvent } from 'react'
+import { X, Plus, Trash2, Palette, Globe, Pencil, Check, GripVertical } from 'lucide-react'
 import type { AppConfig, CategoryDefinition } from '../types'
 import { useI18n } from '../i18n'
 
@@ -23,7 +23,14 @@ export function SettingsPanel({ open, config, onClose, onSave }: SettingsPanelPr
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-  // Sync state when config changes (panel opens or config updates)
+  // Rename state
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+
+  // Drag state for reordering
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+
   useEffect(() => {
     if (config) {
       setDirectories(config.scanDirectories)
@@ -68,6 +75,64 @@ export function SettingsPanel({ open, config, onClose, onSave }: SettingsPanelPr
 
   function handleRemoveCategory(id: string) {
     setCustomCategories(customCategories.filter(c => c.id !== id))
+  }
+
+  // Rename handlers — only changes name, keeps id stable
+  function handleStartEdit(cat: CategoryDefinition) {
+    setEditingCategoryId(cat.id)
+    setEditName(cat.name)
+    setError(null)
+  }
+
+  function handleConfirmRename() {
+    const trimmed = editName.trim()
+    if (!trimmed) {
+      setError('Category name cannot be empty')
+      return
+    }
+    if (customCategories.some(c => c.id !== editingCategoryId && c.name.toLowerCase() === trimmed.toLowerCase())) {
+      setError('Category already exists')
+      return
+    }
+    setCustomCategories(customCategories.map(c =>
+      c.id === editingCategoryId ? { ...c, name: trimmed } : c
+    ))
+    setEditingCategoryId(null)
+    setEditName('')
+    setError(null)
+  }
+
+  function handleCancelEdit() {
+    setEditingCategoryId(null)
+    setEditName('')
+    setError(null)
+  }
+
+  // Drag handlers
+  function handleCatDragStart(index: number) {
+    if (editingCategoryId) return
+    setDragIndex(index)
+  }
+
+  function handleCatDragOver(e: DragEvent, index: number) {
+    e.preventDefault()
+    if (editingCategoryId) return
+    setDragOverIndex(index)
+  }
+
+  function handleCatDrop(index: number) {
+    if (dragIndex === null || dragIndex === index) return
+    const reordered = [...customCategories]
+    const [removed] = reordered.splice(dragIndex, 1)
+    reordered.splice(index, 0, removed)
+    setCustomCategories(reordered)
+    setDragIndex(null)
+    setDragOverIndex(null)
+  }
+
+  function handleCatDragEnd() {
+    setDragIndex(null)
+    setDragOverIndex(null)
   }
 
   async function handleSave() {
@@ -143,15 +208,58 @@ export function SettingsPanel({ open, config, onClose, onSave }: SettingsPanelPr
               <p className="text-xs text-stone-500 mb-3">{t('settings.customCategoriesHint')}</p>
 
               <div className="space-y-2 mb-3">
-                {customCategories.map((cat) => (
-                  <div key={cat.id} className="flex items-center justify-between bg-stone-800 border border-stone-700 rounded-lg px-3 py-2">
-                    <span className="flex items-center gap-2 text-sm text-stone-300">
-                      <Palette size={14} style={{ color: cat.color }} />
-                      {cat.name}
-                    </span>
-                    <button onClick={() => handleRemoveCategory(cat.id)} className="text-stone-500 hover:text-red-400 transition-colors p-1">
-                      <Trash2 size={14} />
-                    </button>
+                {customCategories.map((cat, index) => (
+                  <div
+                    key={cat.id}
+                    draggable={editingCategoryId !== cat.id}
+                    onDragStart={() => handleCatDragStart(index)}
+                    onDragOver={(e) => handleCatDragOver(e, index)}
+                    onDrop={() => handleCatDrop(index)}
+                    onDragEnd={handleCatDragEnd}
+                    className={`flex items-center justify-between bg-stone-800 border border-stone-700 rounded-lg px-3 py-2 transition-all
+                      ${dragOverIndex === index && dragIndex !== index && editingCategoryId !== cat.id ? 'border-t-2 border-orange-500/50' : ''}
+                      ${dragIndex === index ? 'opacity-50' : ''}`}
+                  >
+                    {editingCategoryId === cat.id ? (
+                      /* Edit mode: inline input */
+                      <div className="flex items-center gap-2 flex-1">
+                        <Palette size={14} style={{ color: cat.color }} />
+                        <input
+                          type="text"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleConfirmRename()
+                            if (e.key === 'Escape') handleCancelEdit()
+                          }}
+                          autoFocus
+                          className="flex-1 bg-stone-700 border border-stone-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-orange-500 text-stone-200"
+                        />
+                        <button onClick={handleConfirmRename} className="text-stone-400 hover:text-green-400 transition-colors p-1">
+                          <Check size={14} />
+                        </button>
+                        <button onClick={handleCancelEdit} className="text-stone-500 hover:text-stone-300 transition-colors p-1">
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      /* Normal mode: display with actions */
+                      <>
+                        <span className="flex items-center gap-2 text-sm text-stone-300 min-w-0">
+                          <GripVertical size={14} className="text-stone-600 cursor-grab active:cursor-grabbing shrink-0" />
+                          <Palette size={14} style={{ color: cat.color }} className="shrink-0" />
+                          <span className="truncate">{cat.name}</span>
+                        </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button onClick={() => handleStartEdit(cat)} className="text-stone-500 hover:text-stone-300 transition-colors p-1">
+                            <Pencil size={14} />
+                          </button>
+                          <button onClick={() => handleRemoveCategory(cat.id)} className="text-stone-500 hover:text-red-400 transition-colors p-1">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
                 {customCategories.length === 0 && <p className="text-sm text-stone-600 italic">{t('settings.noCategories')}</p>}
@@ -164,7 +272,7 @@ export function SettingsPanel({ open, config, onClose, onSave }: SettingsPanelPr
                     value={newCatName}
                     onChange={(e) => setNewCatName(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') handleAddCategory() }}
-                    placeholder="Category name"
+                    placeholder={t('settings.categoryName')}
                     className="flex-1 bg-stone-800 border border-stone-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-stone-500 text-stone-200"
                   />
                   <button onClick={handleAddCategory} className="flex items-center gap-1.5 bg-stone-700 hover:bg-stone-600 text-stone-200 text-sm px-3 py-2 rounded-lg transition-colors shrink-0">

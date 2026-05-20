@@ -8,7 +8,7 @@ import { ProjectDetailPanel } from './components/ProjectDetail'
 import { SettingsPanel } from './components/SettingsPanel'
 import { MainContent } from './components/MainContent'
 import { I18nProvider } from './i18n'
-import type { ProjectDetail, TypeGroup, IdeInfo } from './types'
+import type { ProjectDetail, TypeGroup, CategoryDefinition, IdeInfo } from './types'
 
 export default function App() {
   const { projects, loading, scanning, error, scan, refresh } = useProjects()
@@ -44,7 +44,11 @@ export default function App() {
         )
       }
     }
-    return result
+    return result.sort((a, b) => {
+      const timeCmp = b.lastModified.localeCompare(a.lastModified)
+      if (timeCmp !== 0) return timeCmp
+      return a.name.localeCompare(b.name)
+    })
   }, [projects, searchQuery, activeCategory, config])
 
   const typeGroups = useMemo((): TypeGroup[] => {
@@ -79,6 +83,10 @@ export default function App() {
     }
   }, [refresh])
 
+  const handleReorderCategories = useCallback(async (categories: CategoryDefinition[]) => {
+    await saveConfig({ customCategories: categories })
+  }, [saveConfig])
+
   const noScanDirs = config && config.scanDirectories.length === 0
   const noResults = !loading && !scanning && projects.length > 0 && filteredProjects.length === 0
   const isEmpty = !loading && !scanning && projects.length === 0
@@ -93,6 +101,7 @@ export default function App() {
           activeCategory={activeCategory}
           onCategoryChange={setActiveCategory}
           onSettingsClick={() => setSettingsOpen(true)}
+          onReorderCategories={handleReorderCategories}
         />
 
         <div className="flex-1 flex flex-col min-w-0">

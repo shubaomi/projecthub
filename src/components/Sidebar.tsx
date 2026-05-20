@@ -1,4 +1,5 @@
-import { Folder, LayoutGrid, Settings, Tag } from 'lucide-react'
+import { useState, type DragEvent } from 'react'
+import { Folder, LayoutGrid, Settings, Tag, ChevronDown } from 'lucide-react'
 import type { TypeGroup, CategoryDefinition, Project } from '../types'
 import { useI18n } from '../i18n'
 
@@ -9,16 +10,44 @@ interface SidebarProps {
   activeCategory: string
   onCategoryChange: (category: string) => void
   onSettingsClick: () => void
+  onReorderCategories: (categories: CategoryDefinition[]) => void
 }
 
-export function Sidebar({ typeGroups, customCategories, projects, activeCategory, onCategoryChange, onSettingsClick }: SidebarProps) {
+export function Sidebar({ typeGroups, customCategories, projects, activeCategory, onCategoryChange, onSettingsClick, onReorderCategories }: SidebarProps) {
   const { t } = useI18n()
   const total = typeGroups.reduce((sum, g) => sum + g.count, 0)
 
-  // Count projects per custom category
   const categoryCounts = new Map<string, number>()
   for (const cat of customCategories) {
     categoryCounts.set(cat.id, projects.filter(p => p.customCategory === cat.id).length)
+  }
+
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [techStackOpen, setTechStackOpen] = useState(customCategories.length === 0)
+
+  function handleDragStart(index: number) {
+    setDragIndex(index)
+  }
+
+  function handleDragOver(e: DragEvent, index: number) {
+    e.preventDefault()
+    setDragOverIndex(index)
+  }
+
+  function handleDrop(index: number) {
+    if (dragIndex === null || dragIndex === index) return
+    const reordered = [...customCategories]
+    const [removed] = reordered.splice(dragIndex, 1)
+    reordered.splice(index, 0, removed)
+    onReorderCategories(reordered)
+    setDragIndex(null)
+    setDragOverIndex(null)
+  }
+
+  function handleDragEnd() {
+    setDragIndex(null)
+    setDragOverIndex(null)
   }
 
   return (
@@ -32,33 +61,60 @@ export function Sidebar({ typeGroups, customCategories, projects, activeCategory
         </div>
       </div>
 
-      {customCategories.length > 0 && (
-        <>
-          <div className="px-4 py-2 text-xs font-semibold text-stone-500 uppercase tracking-wider">{t('sidebar.customCategories')}</div>
-          <div className="px-3 space-y-1">
-            <CategoryButton key="all" label={t('sidebar.all')} count={total} isActive={activeCategory === 'All'} onClick={() => onCategoryChange('All')} />
-            {customCategories.map((cat) => (
+      {/* Unified scrollable area: custom categories + tech stack */}
+      <div className="flex-1 overflow-y-auto">
+        {customCategories.length > 0 && (
+          <>
+            <div className="px-4 py-2 text-xs font-semibold text-stone-500 uppercase tracking-wider">{t('sidebar.customCategories')}</div>
+            <div className="px-3 space-y-1">
               <CategoryButton
-                key={cat.id}
-                label={cat.name}
-                count={categoryCounts.get(cat.id) || 0}
-                isActive={activeCategory === cat.id}
-                color={cat.color}
-                onClick={() => onCategoryChange(cat.id)}
+                label={t('sidebar.all')}
+                count={total}
+                isActive={activeCategory === 'All'}
+                onClick={() => onCategoryChange('All')}
               />
+              {customCategories.map((cat, index) => (
+                <div
+                  key={cat.id}
+                  draggable
+                  onDragStart={() => handleDragStart(index)}
+                  onDragOver={(e) => handleDragOver(e, index)}
+                  onDrop={() => handleDrop(index)}
+                  onDragEnd={handleDragEnd}
+                  className={`${dragOverIndex === index && dragIndex !== index ? 'border-t-2 border-orange-500/50 -mt-px' : ''} ${dragIndex === index ? 'opacity-50' : ''}`}
+                >
+                  <CategoryButton
+                    label={cat.name}
+                    count={categoryCounts.get(cat.id) || 0}
+                    isActive={activeCategory === cat.id}
+                    color={cat.color}
+                    onClick={() => onCategoryChange(cat.id)}
+                  />
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        <button
+          onClick={() => setTechStackOpen(!techStackOpen)}
+          className="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-stone-500 uppercase tracking-wider hover:text-stone-300 transition-colors"
+        >
+          {t('sidebar.techStack')}
+          <ChevronDown size={14} className={`transition-transform ${techStackOpen ? 'rotate-0' : '-rotate-90'}`} />
+        </button>
+        {techStackOpen && (
+          <div className="px-3 space-y-1">
+            {customCategories.length === 0 && (
+              <CategoryButton label="All" count={total} isActive={activeCategory === 'All'} onClick={() => onCategoryChange('All')} />
+            )}
+            {typeGroups.filter(g => g.count > 0).map((group) => (
+              <div key={group.type}>
+                <CategoryButton label={group.type} count={group.count} isActive={activeCategory === group.type} onClick={() => onCategoryChange(group.type)} />
+              </div>
             ))}
           </div>
-        </>
-      )}
-
-      <div className="px-4 py-2 text-xs font-semibold text-stone-500 uppercase tracking-wider">{t('sidebar.techStack')}</div>
-      <div className="px-3 flex-1 overflow-y-auto space-y-1">
-        {customCategories.length === 0 && (
-          <CategoryButton key="all" label="All" count={total} isActive={activeCategory === 'All'} onClick={() => onCategoryChange('All')} />
         )}
-        {typeGroups.filter(g => g.count > 0).map((group) => (
-          <CategoryButton key={group.type} label={group.type} count={group.count} isActive={activeCategory === group.type} onClick={() => onCategoryChange(group.type)} />
-        ))}
       </div>
 
       <div className="p-4 border-t border-stone-800">

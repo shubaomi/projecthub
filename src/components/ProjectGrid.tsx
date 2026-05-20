@@ -16,15 +16,16 @@ export function ProjectGrid({ projects, ides, preferredIde, customCategories, on
     <motion.div layout className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
       <AnimatePresence>
         {projects.map((project) => (
-          <ProjectCard
-            key={project.id}
-            project={project}
-            ides={ides}
-            preferredIde={preferredIde}
-            customCategories={customCategories}
-            onOpen={(action) => onOpenAction(project.id, action)}
-            onClick={() => onProjectClick(project)}
-          />
+          <div key={project.id}>
+            <ProjectCard
+              project={project}
+              ides={ides}
+              preferredIde={preferredIde}
+              customCategories={customCategories}
+              onOpen={(action) => onOpenAction(project.id, action)}
+              onClick={() => onProjectClick(project)}
+            />
+          </div>
         ))}
       </AnimatePresence>
     </motion.div>
