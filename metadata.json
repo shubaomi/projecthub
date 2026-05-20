@@ -1,0 +1,6 @@
+{
+  "name": "Project Hub Dashboard",
+  "description": "A visual dashboard for managing and categorizing local software projects.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
