@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { X, Code2, Terminal, Folder, Tag, ChevronDown } from 'lucide-react'
+import { X, Code2, Terminal, Folder, Tag, ChevronDown, Check } from 'lucide-react'
 import type { ProjectDetail as ProjectDetailType, CategoryDefinition, IdeInfo } from '../types'
 import { GitStatusBadge } from './GitStatusBadge'
 import { useI18n } from '../i18n'
@@ -20,6 +20,7 @@ interface ProjectDetailProps {
 export function ProjectDetailPanel({ project, customCategories, ides, preferredIde, onClose, onOpenAction, onCategoryChange, onRefresh }: ProjectDetailProps) {
   const { t } = useI18n()
   const [showIdeMenu, setShowIdeMenu] = useState(false)
+  const [showCategoryMenu, setShowCategoryMenu] = useState(false)
   const [fullProject, setFullProject] = useState<ProjectDetailType | null>(null)
   const [readmeLoading, setReadmeLoading] = useState(false)
   const selectedIde = ides.find(i => i.id === (preferredIde || 'vscode')) || ides[0]
@@ -37,6 +38,7 @@ export function ProjectDetailPanel({ project, customCategories, ides, preferredI
   }, [project?.id])
 
   const readmeContent = fullProject?.readme || project?.readme || null
+  const currentCategory = customCategories.find(c => c.id === project?.customCategory)
   return (
     <AnimatePresence>
       {project && (
@@ -79,34 +81,48 @@ export function ProjectDetailPanel({ project, customCategories, ides, preferredI
 
                 {customCategories.length > 0 && (
                   <DetailSection label={t('detail.category')}>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="relative" tabIndex={0} onBlur={(e) => {
+                      if (!e.currentTarget.contains(e.relatedTarget as Node)) setShowCategoryMenu(false)
+                    }}>
                       <button
-                        onClick={() => onCategoryChange(project.id, null)}
-                        className={`px-2 py-1 rounded-md text-xs border transition-colors ${
-                          !project.customCategory
-                            ? 'bg-stone-700 text-stone-100 border-stone-500'
-                            : 'bg-stone-800 text-stone-400 border-stone-700 hover:border-stone-500'
-                        }`}
+                        onClick={() => setShowCategoryMenu(!showCategoryMenu)}
+                        className="flex items-center gap-2 bg-stone-800 border border-stone-700 rounded-lg px-3 py-2 text-sm text-stone-200 hover:border-stone-500 transition-colors w-full justify-between"
                       >
-                        {t('detail.none')}
+                        <span className="flex items-center gap-2">
+                          {currentCategory ? (
+                            <><Tag size={14} style={{ color: currentCategory.color }} /> {currentCategory.name}</>
+                          ) : (
+                            <span className="text-stone-400">{t('detail.uncategorized')}</span>
+                          )}
+                        </span>
+                        <ChevronDown size={14} className={showCategoryMenu ? 'rotate-180 transition-transform' : 'transition-transform'} />
                       </button>
-                      {customCategories.map((cat) => {
-                        const isActive = project.customCategory === cat.id
-                        return (
+                      {showCategoryMenu && (
+                        <div className="absolute top-full left-0 mt-1 bg-stone-800 border border-stone-700 rounded-lg shadow-xl z-10 w-full">
                           <button
-                            key={cat.id}
-                            onClick={() => onCategoryChange(project.id, cat.id)}
-                            className={`px-2 py-1 rounded-md text-xs border transition-colors flex items-center gap-1.5 ${
-                              isActive
-                                ? 'bg-stone-700 text-stone-100 border-stone-500'
-                                : 'bg-stone-800 text-stone-400 border-stone-700 hover:border-stone-500'
-                            }`}
+                            onClick={() => { onCategoryChange(project.id, null); setShowCategoryMenu(false) }}
+                            className="w-full text-left px-3 py-2 text-sm text-stone-200 hover:bg-stone-700 first:rounded-t-lg flex items-center gap-2"
                           >
-                            <Tag size={10} style={{ color: cat.color }} />
-                            {cat.name}
+                            {!project.customCategory ? <Check size={14} className="text-stone-300 shrink-0" /> : <span className="w-[14px] shrink-0" />}
+                            {t('detail.uncategorized')}
                           </button>
-                        )
-                      })}
+                          {customCategories.map((cat) => (
+                            <button
+                              key={cat.id}
+                              onClick={() => { onCategoryChange(project.id, cat.id); setShowCategoryMenu(false) }}
+                              className="w-full text-left px-3 py-2 text-sm text-stone-200 hover:bg-stone-700 last:rounded-b-lg flex items-center gap-2"
+                            >
+                              {project.customCategory === cat.id ? (
+                                <Check size={14} className="text-stone-300 shrink-0" />
+                              ) : (
+                                <span className="w-[14px] shrink-0" />
+                              )}
+                              <Tag size={14} style={{ color: cat.color }} />
+                              {cat.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </DetailSection>
                 )}

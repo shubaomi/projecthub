@@ -3,7 +3,7 @@ import { EmptyState } from './EmptyState'
 import { SkeletonLoader } from './SkeletonLoader'
 import { ProjectGrid } from './ProjectGrid'
 import { useRef, useEffect } from 'react'
-import type { ProjectDetail, TypeGroup, IdeInfo } from '../types'
+import type { ProjectDetail, TypeGroup, IdeInfo, CategoryDefinition } from '../types'
 
 interface MainContentProps {
   activeCategory: string
@@ -16,6 +16,7 @@ interface MainContentProps {
   noResults: boolean
   ides: IdeInfo[]
   preferredIde: string | null
+  customCategories: CategoryDefinition[]
   onOpenAction: (projectId: string, action: string) => void
   onProjectClick: (project: ProjectDetail) => void
   onSettingsOpen: () => void
@@ -34,6 +35,7 @@ export function MainContent({
   noResults,
   ides,
   preferredIde,
+  customCategories,
   onOpenAction,
   onProjectClick,
   onSettingsOpen,
@@ -93,6 +95,7 @@ export function MainContent({
           projects={filteredProjects}
           ides={ides}
           preferredIde={preferredIde}
+          customCategories={customCategories}
           onOpenAction={onOpenAction}
           onProjectClick={onProjectClick}
         />

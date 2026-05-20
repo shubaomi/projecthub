@@ -191,7 +191,10 @@ export interface GitStatus {
 ├── config.json       ← AppConfig.customCategories 存在这里
 │   {
 │     "scanDirectories": [...],
-│     "customCategories": ["Work", "Personal", "OSS"]
+│     "customCategories": [
+      { "id": "work", "name": "Work", "color": "#f97316" },
+      { "id": "personal", "name": "Personal", "color": "#22c55e" }
+    ]
 │   }
 │
 └── projects.json     ← Project.customCategory 存在这里
@@ -218,7 +221,13 @@ export interface GitStatus {
 ```typescript
 export interface AppConfig {
   // ... 现有字段保留 ...
-  customCategories: string[]   // 用户自定义的分类名称列表，如 ["Work", "Personal", "OSS"]
+  customCategories: CategoryDefinition[]   // 包含 id、name、color 的对象数组
+}
+
+export interface CategoryDefinition {
+  id: string       // 唯一标识（由名称自动生成，如 "work"）
+  name: string     // 显示名称（如 "Work"）
+  color: string    // 颜色十六进制值（如 "#f97316"）
 }
 ```
 
@@ -305,9 +314,7 @@ for (const project of found) {
 
 | Method | Path | 描述 |
 |--------|------|------|
-| `PUT` | `/api/projects/:id/category` | 更新项目自定义分类 |
-| `POST` | `/api/categories` | 创建新自定义分类 |
-| `DELETE` | `/api/categories/:name` | 删除自定义分类 |
+| `PATCH` | `/api/projects/:id/category` | 更新项目自定义分类 |
 
 ---
 

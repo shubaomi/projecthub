@@ -36,6 +36,7 @@ export const en = {
   'detail.untracked': 'Untracked: ',
   'detail.readme': 'README',
   'detail.none': 'None',
+  'detail.uncategorized': 'Uncategorized',
   'detail.openTerminal': 'Terminal',
   'detail.openFolder': 'Folder',
   'detail.ahead': '{count} commits ahead of remote',

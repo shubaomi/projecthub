@@ -1,9 +1,9 @@
 import React, { useState } from 'react'
 import { motion } from 'motion/react'
 import {
-  Code2, Folder, Terminal, MoreVertical, Globe, Server, ChevronDown,
+  Code2, Folder, Terminal, MoreVertical, Globe, Server, ChevronDown, Tag,
 } from 'lucide-react'
-import type { ProjectDetail, IdeInfo } from '../types'
+import type { ProjectDetail, IdeInfo, CategoryDefinition } from '../types'
 import { GitStatusBadge } from './GitStatusBadge'
 import { ReadmeExcerpt } from './ReadmeExcerpt'
 import { useI18n } from '../i18n'
@@ -12,6 +12,7 @@ export interface ProjectCardProps {
   project: ProjectDetail
   ides: IdeInfo[]
   preferredIde: string | null
+  customCategories: CategoryDefinition[]
   onOpen: (action: string) => void
   onClick: () => void
 }
@@ -52,13 +53,14 @@ function formatRelativeTime(isoString: string, t: (key: string, params?: Record<
   return t('time.monthsAgo', { count: String(Math.floor(days / 30)) })
 }
 
-export function ProjectCard({ project, ides, preferredIde, onOpen, onClick }: ProjectCardProps) {
+export function ProjectCard({ project, ides, preferredIde, customCategories, onOpen, onClick }: ProjectCardProps) {
   const { t } = useI18n()
   const Icon = ICON_MAP[project.type] || Folder
   const colors = COLOR_MAP[project.type] || COLOR_MAP.Unknown
   const formattedTime = project.lastModified ? formatRelativeTime(project.lastModified, t) : ''
   const [showIdeMenu, setShowIdeMenu] = useState(false)
   const selectedIde = ides.find(i => i.id === (preferredIde || 'vscode')) || ides[0]
+  const category = customCategories.find(c => c.id === project.customCategory)
 
   return (
     <motion.div
@@ -79,7 +81,19 @@ export function ProjectCard({ project, ides, preferredIde, onOpen, onClick }: Pr
         </button>
       </div>
 
-      <h3 className="text-stone-100 font-medium text-lg mb-1 truncate">{project.name}</h3>
+      <h3 className="text-stone-100 font-medium text-lg truncate">{project.name}</h3>
+
+      {category && (
+        <div className="flex items-center gap-1.5 mb-1">
+          <span
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border"
+            style={{ color: category.color, borderColor: category.color + '40', backgroundColor: category.color + '18' }}
+          >
+            <Tag size={11} />
+            {category.name}
+          </span>
+        </div>
+      )}
 
       <div className="font-mono text-xs text-stone-500 mb-1 truncate flex items-center gap-1.5" title={project.path}>
         <Terminal size={12} />

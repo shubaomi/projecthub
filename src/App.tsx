@@ -11,7 +11,7 @@ import { I18nProvider } from './i18n'
 import type { ProjectDetail, TypeGroup, IdeInfo } from './types'
 
 export default function App() {
-  const { projects, loading, scanning, error, scan } = useProjects()
+  const { projects, loading, scanning, error, scan, refresh } = useProjects()
   const { config, save: saveConfig } = useConfig()
   const [searchQuery, setSearchQuery] = useState('')
   const [activeCategory, setActiveCategory] = useState('All')
@@ -69,13 +69,15 @@ export default function App() {
   }, [scan])
 
   const handleCategoryChange = useCallback(async (projectId: string, categoryId: string | null) => {
+    setActionError(null)
     try {
       await updateProjectCategory(projectId, categoryId)
-      onRefresh()
+      setSelectedProject(prev => prev?.id === projectId ? { ...prev, customCategory: categoryId } : prev)
+      await refresh()
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Failed to update category')
     }
-  }, [onRefresh])
+  }, [refresh])
 
   const noScanDirs = config && config.scanDirectories.length === 0
   const noResults = !loading && !scanning && projects.length > 0 && filteredProjects.length === 0
@@ -114,6 +116,7 @@ export default function App() {
             noResults={noResults}
             ides={ides}
             preferredIde={config?.preferredIde || null}
+            customCategories={config?.customCategories || []}
             onOpenAction={handleOpenAction}
             onProjectClick={setSelectedProject}
             onSettingsOpen={() => setSettingsOpen(true)}

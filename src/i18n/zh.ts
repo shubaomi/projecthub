@@ -36,6 +36,7 @@ export const zh = {
   'detail.untracked': '未跟踪：',
   'detail.readme': '自述文件',
   'detail.none': '无',
+  'detail.uncategorized': '未分类',
   'detail.openTerminal': '终端',
   'detail.openFolder': '文件夹',
   'detail.ahead': '领先远程 {count} 个提交',

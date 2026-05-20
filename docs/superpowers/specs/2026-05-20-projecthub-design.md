@@ -138,9 +138,8 @@ Express 后端 (localhost:3001)
 | `go.mod` | Go |
 | `Cargo.toml` | Rust |
 | `requirements.txt` / `pyproject.toml` / `Pipfile` | Python |
-| `.csproj` / `.sln` | .NET |
+| `.csproj` | .NET |
 | `pom.xml` / `build.gradle` | Java / Kotlin |
-| `CMakeLists.txt` | C / C++ |
 | `.git` (无其他特征) | Unknown |
 
 ---
@@ -167,6 +166,7 @@ interface ApiResponse<T> {
 | `GET` | `/api/config` | 获取当前配置 |
 | `PUT` | `/api/config` | 更新配置 |
 | `POST` | `/api/open` | 执行快捷操作（IDE/终端/文件夹） |
+| `PATCH` | `/api/projects/:id/category` | 更新项目自定义分类 |
 | `GET` | `/api/ides` | 获取可用 IDE 列表 |
 
 ### 5.2 端点详情
@@ -209,26 +209,36 @@ Body:
 App
 ├── Sidebar
 │   ├── Logo
-│   ├── CategoryList
+│   ├── CustomCategoryList
+│   ├── TechStackList
 │   └── SettingsButton
 ├── MainContent
 │   ├── SearchHeader
 │   │   ├── SearchBar
+│   │   ├── LanguageSwitcher
+│   │   ├── ScanTimestamp
 │   │   └── ScanButton
+│   ├── PageHeader
+│   ├── ErrorBanner
 │   ├── ProjectGrid
 │   │   └── ProjectCard (×N)
 │   │       ├── ProjectIcon
+│   │       ├── CategoryBadge          ← 自定义分类彩色标签
 │   │       ├── GitStatusBadge
 │   │       ├── ReadmeExcerpt
-│   │       ├── TagList
+│   │       ├── TechTags
 │   │       └── QuickActions
+│   ├── SkeletonLoader
 │   └── EmptyState
-├── ProjectDetail (modal/panel)
+├── ProjectDetail (slide-in panel)
 │   ├── ReadmeViewer
 │   ├── GitDetail
+│   ├── CategorySelector              ← 下拉选择器
 │   └── ActionButtons
 └── SettingsPanel (modal)
-    └── ScanDirectoryEditor
+    ├── ScanDirectoryEditor
+    ├── CustomCategoryEditor
+    └── LanguageSelector
 ```
 
 ### 6.2 关键交互
@@ -264,7 +274,7 @@ App
 4. 与现有缓存对比：
    - 新项目 → 添加
    - 已有项目 → 更新 lastScanned
-   - 缓存中有但磁盘中消失 → 标记为 stale（保留 7 天后删除）
+   - 缓存中有但磁盘中消失 → 立即从缓存移除（不再保留 stale 项目）
 5. 写入 projects.json
 ```
 
@@ -279,7 +289,7 @@ App
 ## 8. 安全考量
 
 - 后端仅监听 `127.0.0.1`（localhost），不暴露到局域网
-- 快捷操作 (`POST /api/open`) 仅接受预定义 action 枚举值，防止命令注入
+- 快捷操作 (`POST /api/open`) 支持预定义 action（`vscode`/`terminal`/`folder`）和动态 IDE 命令（如 `cursor`、`trae-cn`），所有命令通过 `cmd.exe /c` 或 `open -a` 执行，不解析用户输入的 shell 表达式
 - 不执行任何用户传入的 shell 命令
 - 扫描路径从配置读取，不接受 API 参数传入
 
@@ -318,7 +328,7 @@ App
 | AC-ACTIONS-02 | 点击"Terminal"按钮，在项目路径下打开系统终端 |
 | AC-ACTIONS-03 | 点击"Folder"按钮，在文件管理器中打开项目目录 |
 | AC-ACTIONS-04 | 操作失败时，显示具体错误提示（如"未安装 VS Code"） |
-| AC-ACTIONS-05 | `POST /api/open` 拒绝非枚举值以外的 action 参数，返回 400 |
+| AC-ACTIONS-05 | `POST /api/open` 接受标准 action（vscode/terminal/folder）和动态 IDE 命令字符串，缺失参数时返回 400 |
 
 ### 9.5 Git 状态 (AC-GIT)
 
@@ -332,7 +342,7 @@ App
 
 | AC-README-01 | 存在 `README.md` 的项目，卡片展示前 200 字符摘要 |
 | AC-README-02 | 不存在 README 的项目，不显示摘要区域（不报错） |
-| AC-README-03 | 点击项目可展开详情面板，展示 README 全文（最多 2000 字符） |
+| AC-README-03 | 点击项目可展开详情面板，展示 README 全文（无截断），详情区域最大高度 60vh |
 | AC-README-04 | Markdown 内容以纯文本形式展示（v1.0 不做渲染） |
 
 ### 9.7 配置管理 (AC-CONFIG)

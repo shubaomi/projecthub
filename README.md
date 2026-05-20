@@ -1,8 +1,6 @@
 # ProjectHub
 
-本地开发项目管理工作区 — 自动扫描本地目录中的开发项目，集中展示项目信息（类型、标签、Git 状态、README 摘要），提供一键打开 IDE/终端的快捷操作。
-
-![ProjectHub](https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6)
+本地开发项目管理工作区
 
 ## 功能特性
 
@@ -116,6 +114,7 @@ projecthub/
 | `GET` | `/api/projects` | 获取项目列表 |
 | `GET` | `/api/projects/:id` | 获取项目详情（含 README 全文） |
 | `POST` | `/api/scan` | 触发目录扫描 |
+| `PATCH` | `/api/projects/:id/category` | 更新项目自定义分类 |
 | `GET` | `/api/config` | 获取配置 |
 | `PUT` | `/api/config` | 更新配置 |
 | `POST` | `/api/open` | 执行快捷操作 |
