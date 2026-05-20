@@ -6,6 +6,7 @@ import { GitStatus } from '../types.js'
 
 const EMPTY_STATUS: GitStatus = {
   branch: '',
+  allBranches: [],
   ahead: 0,
   behind: 0,
   modified: [],
@@ -32,6 +33,7 @@ export function getGitStatus(projectPath: string): GitStatus {
 
     const status: GitStatus = {
       branch: branchOutput,
+      allBranches: [],
       ahead: 0,
       behind: 0,
       modified: [],
@@ -39,6 +41,20 @@ export function getGitStatus(projectPath: string): GitStatus {
       deleted: [],
       untracked: [],
       isRepo: true,
+    }
+
+    // Fetch all local branches
+    try {
+      const branchListOutput = execFileSync('git', ['branch', '--format=%(refname:short)'], {
+        cwd: projectPath,
+        timeout: 5000,
+        encoding: 'utf-8',
+      }).trim()
+      if (branchListOutput) {
+        status.allBranches = branchListOutput.split('\n').filter(Boolean)
+      }
+    } catch {
+      // ignore branch list errors
     }
 
     const porcelain = execFileSync('git', ['status', '--porcelain', '-b'], {

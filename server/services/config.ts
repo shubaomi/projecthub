@@ -21,7 +21,7 @@ export function readConfig(): AppConfig {
   }
   const raw = fs.readFileSync(CONFIG_PATH, 'utf-8')
   const parsed = JSON.parse(raw)
-  return { ...DEFAULT_CONFIG, ...parsed }
+  return { ...DEFAULT_CONFIG, ...parsed, customCategories: parsed.customCategories || [] }
 }
 
 export function writeConfig(config: AppConfig): void {

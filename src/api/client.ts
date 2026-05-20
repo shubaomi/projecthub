@@ -1,5 +1,5 @@
 // src/api/client.ts
-import type { ApiResponse, ProjectDetail, AppConfig, ScanResult } from '../types'
+import type { ApiResponse, ProjectDetail, AppConfig, ScanResult, Project, IdeInfo } from '../types'
 
 const BASE_URL = '/api'
 
@@ -38,9 +38,20 @@ export function updateConfig(config: Partial<AppConfig>): Promise<AppConfig> {
   return request<AppConfig>('/config', { method: 'PUT', body: JSON.stringify(config) })
 }
 
+export function updateProjectCategory(projectId: string, customCategory: string | null): Promise<Project> {
+  return request<Project>(`/projects/${encodeURIComponent(projectId)}/category`, {
+    method: 'PATCH',
+    body: JSON.stringify({ customCategory }),
+  })
+}
+
 export function executeOpenAction(projectId: string, action: string): Promise<{ message: string }> {
   return request<{ message: string }>('/open', {
     method: 'POST',
     body: JSON.stringify({ projectId, action }),
   })
+}
+
+export function fetchIdes(): Promise<IdeInfo[]> {
+  return request<IdeInfo[]>('/ides')
 }

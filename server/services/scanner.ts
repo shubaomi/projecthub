@@ -108,6 +108,8 @@ export function scan(): ScanResult {
     const existingProject = existingMap.get(project.path)
     if (existingProject) {
       existingProject.lastScanned = now
+      // Preserve custom category across re-scans
+      existingProject.customCategory = existingProject.customCategory ?? null
       existingMap.set(project.path, existingProject)
     } else {
       added++
@@ -116,6 +118,7 @@ export function scan(): ScanResult {
         id: generateId(project.path),
         firstSeen: now,
         lastScanned: now,
+        customCategory: null,
       })
     }
   }
@@ -176,6 +179,7 @@ function scanDirectory(
             type: info.type,
             projectFile: info.projectFile,
             tags: info.tags,
+            customCategory: null,
             firstSeen: '',
             lastScanned: '',
           })
@@ -201,4 +205,13 @@ export function loadProjects(): Project[] {
 
 export function getProjectById(id: string): Project | undefined {
   return loadProjectCache().find((p) => p.id === id)
+}
+
+export function updateProjectCategory(projectId: string, customCategory: string | null): Project | null {
+  const projects = loadProjectCache()
+  const index = projects.findIndex((p) => p.id === projectId)
+  if (index === -1) return null
+  projects[index] = { ...projects[index], customCategory }
+  saveProjectCache(projects)
+  return projects[index]
 }

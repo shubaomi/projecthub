@@ -1,15 +1,18 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { motion } from 'motion/react'
 import {
-  Code2, Folder, Terminal, MoreVertical, Globe, Server,
+  Code2, Folder, Terminal, MoreVertical, Globe, Server, ChevronDown,
 } from 'lucide-react'
-import type { ProjectDetail } from '../types'
+import type { ProjectDetail, IdeInfo } from '../types'
 import { GitStatusBadge } from './GitStatusBadge'
 import { ReadmeExcerpt } from './ReadmeExcerpt'
+import { useI18n } from '../i18n'
 
 export interface ProjectCardProps {
   project: ProjectDetail
-  onOpen: (action: 'vscode' | 'terminal' | 'folder') => void
+  ides: IdeInfo[]
+  preferredIde: string | null
+  onOpen: (action: string) => void
   onClick: () => void
 }
 
@@ -35,24 +38,27 @@ const COLOR_MAP: Record<string, { color: string; bg: string }> = {
   Unknown: { color: 'text-stone-400', bg: 'bg-stone-400/10' },
 }
 
-function formatRelativeTime(isoString: string): string {
+function formatRelativeTime(isoString: string, t: (key: string, params?: Record<string, string | number>) => string): string {
   const diff = Date.now() - new Date(isoString).getTime()
   const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes}m ago`
+  if (minutes < 1) return t('time.justNow')
+  if (minutes < 60) return t('time.minutesAgo', { count: String(minutes) })
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) return t('time.hoursAgo', { count: String(hours) })
   const days = Math.floor(hours / 24)
-  if (days < 7) return `${days}d ago`
+  if (days < 7) return t('time.daysAgo', { count: String(days) })
   const weeks = Math.floor(days / 7)
-  if (weeks < 4) return `${weeks}w ago`
-  return `${Math.floor(days / 30)}mo ago`
+  if (weeks < 4) return t('time.weeksAgo', { count: String(weeks) })
+  return t('time.monthsAgo', { count: String(Math.floor(days / 30)) })
 }
 
-export function ProjectCard({ project, onOpen, onClick }: ProjectCardProps) {
+export function ProjectCard({ project, ides, preferredIde, onOpen, onClick }: ProjectCardProps) {
+  const { t } = useI18n()
   const Icon = ICON_MAP[project.type] || Folder
   const colors = COLOR_MAP[project.type] || COLOR_MAP.Unknown
-  const formattedTime = project.lastModified ? formatRelativeTime(project.lastModified) : ''
+  const formattedTime = project.lastModified ? formatRelativeTime(project.lastModified, t) : ''
+  const [showIdeMenu, setShowIdeMenu] = useState(false)
+  const selectedIde = ides.find(i => i.id === (preferredIde || 'vscode')) || ides[0]
 
   return (
     <motion.div
@@ -92,21 +98,57 @@ export function ProjectCard({ project, onOpen, onClick }: ProjectCardProps) {
       </div>
 
       <div className="mt-auto pt-4 border-t border-stone-800/50 flex items-center justify-between">
-        {formattedTime && <span className="text-xs text-stone-500">Updated {formattedTime}</span>}
+        {formattedTime && <span className="text-xs text-stone-500">{t('card.updated', { time: formattedTime })}</span>}
         <div className="flex gap-2 ml-auto">
-          {(['vscode', 'terminal', 'folder'] as const).map((action) => {
-            const ActionIcon = action === 'vscode' ? Code2 : action === 'terminal' ? Terminal : Folder
-            return (
+          <button
+            className="bg-stone-800 hover:bg-stone-700 text-stone-200 p-2 rounded-lg transition-colors"
+            title="Open Terminal"
+            onClick={(e) => { e.stopPropagation(); onOpen('terminal') }}
+          >
+            <Terminal size={16} />
+          </button>
+          <button
+            className="bg-stone-800 hover:bg-stone-700 text-stone-200 p-2 rounded-lg transition-colors"
+            title="Open Folder"
+            onClick={(e) => { e.stopPropagation(); onOpen('folder') }}
+          >
+            <Folder size={16} />
+          </button>
+          {ides.length > 0 ? (
+            <div className="relative" tabIndex={0} onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) setShowIdeMenu(false)
+            }}>
               <button
-                key={action}
-                className="bg-stone-800 hover:bg-stone-700 text-stone-200 p-2 rounded-lg transition-colors"
-                title={`Open ${action}`}
-                onClick={(e) => { e.stopPropagation(); onOpen(action) }}
+                className="bg-stone-800 hover:bg-stone-700 text-stone-200 p-2 rounded-lg transition-colors flex items-center gap-1"
+                title={`Open in ${selectedIde?.name || 'IDE'}`}
+                onClick={(e) => { e.stopPropagation(); setShowIdeMenu(!showIdeMenu) }}
               >
-                <ActionIcon size={16} />
+                <Code2 size={16} />
+                <ChevronDown size={12} />
               </button>
-            )
-          })}
+              {showIdeMenu && (
+                <div className="absolute bottom-full right-0 mb-1 bg-stone-800 border border-stone-700 rounded-lg shadow-xl z-10 min-w-[120px]">
+                  {ides.map((ide) => (
+                    <button
+                      key={ide.id}
+                      className="w-full text-left px-3 py-2 text-sm text-stone-200 hover:bg-stone-700 first:rounded-t-lg last:rounded-b-lg flex items-center gap-2"
+                      onClick={(e) => { e.stopPropagation(); onOpen(ide.command); setShowIdeMenu(false) }}
+                    >
+                      <Code2 size={14} /> {ide.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <button
+              className="bg-stone-800 hover:bg-stone-700 text-stone-200 p-2 rounded-lg transition-colors"
+              title="Open VS Code"
+              onClick={(e) => { e.stopPropagation(); onOpen('code') }}
+            >
+              <Code2 size={16} />
+            </button>
+          )}
         </div>
       </div>
     </motion.div>

@@ -11,6 +11,7 @@ export function GitStatusBadge({ git }: GitStatusBadgeProps) {
   const changeCount = git.modified.length + git.added.length + git.deleted.length + git.untracked.length
   const hasChanges = changeCount > 0
   const hasRemote = git.ahead > 0 || git.behind > 0
+  const branchCount = git.allBranches.length
 
   return (
     <div
@@ -19,6 +20,7 @@ export function GitStatusBadge({ git }: GitStatusBadgeProps) {
     >
       <GitBranch size={12} className={hasChanges ? 'text-amber-400' : 'text-emerald-400'} />
       <span className="text-stone-400">{git.branch}</span>
+      {branchCount > 1 && <span className="text-stone-500">({branchCount})</span>}
       {hasChanges && <span className="text-amber-400 font-medium">{changeCount}</span>}
       {hasRemote && (
         <span className="text-stone-500">

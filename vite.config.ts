@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
 
+const DEFAULT_BACKEND_PORT = '13001';
+
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
@@ -16,7 +18,7 @@ export default defineConfig(() => {
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
       proxy: {
         '/api': {
-          target: 'http://127.0.0.1:3001',
+          target: `http://127.0.0.1:${process.env.PORT || DEFAULT_BACKEND_PORT}`,
           changeOrigin: true,
         },
       },

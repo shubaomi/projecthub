@@ -2,6 +2,7 @@
 
 export interface GitStatus {
   branch: string
+  allBranches: string[]
   ahead: number
   behind: number
   modified: string[]
@@ -18,6 +19,7 @@ export interface Project {
   type: string
   projectFile: string
   tags: string[]
+  customCategory: string | null
   firstSeen: string
   lastScanned: string
 }
@@ -28,11 +30,20 @@ export interface ProjectDetail extends Project {
   lastModified: string
 }
 
+export interface CategoryDefinition {
+  id: string
+  name: string
+  color: string
+}
+
 export interface AppConfig {
   scanDirectories: string[]
   scanDepth: number
   excludePatterns: string[]
   lastScanTime: string | null
+  customCategories: CategoryDefinition[]
+  preferredIde: string | null
+  language: string
 }
 
 export interface ScanResult {
@@ -49,7 +60,14 @@ export interface ApiResponse<T> {
   error?: string
 }
 
-export type OpenAction = 'vscode' | 'terminal' | 'folder'
+export type OpenAction = 'vscode' | 'terminal' | 'folder' | string
+
+export interface IdeInfo {
+  id: string
+  name: string
+  command: string
+  detected: boolean
+}
 
 export interface TypeGroup {
   type: string

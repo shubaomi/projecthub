@@ -342,81 +342,17 @@ for (const project of found) {
 
 #### 5.3 脚本实现
 
-用 **Node.js 脚本**（跨平台最佳）：
+用 **平台原生脚本**（PowerShell + Bash）：
 
-```javascript
-// scripts/start.js
-const { spawn } = require('child_process')
-const http = require('http')
-const { exec } = require('child_process')
+- `scripts/start.ps1` — Windows PowerShell 启动脚本
+- `scripts/start.sh` — macOS/Linux Bash 启动脚本
 
-const FRONTEND_PORT = 13000
-const BACKEND_PORT = 13001
-
-function waitForServer(port, maxRetries = 30) {
-  return new Promise((resolve, reject) => {
-    let attempts = 0
-    const interval = setInterval(() => {
-      http.get(`http://127.0.0.1:${port}/api/config`, (res) => {
-        clearInterval(interval)
-        resolve()
-      }).on('error', () => {
-        attempts++
-        if (attempts >= maxRetries) {
-          clearInterval(interval)
-          reject(new Error(`Server on port ${port} did not start in time`))
-        }
-      })
-    }, 500)
-  })
-}
-
-async function start() {
-  // 1. 启动后端
-  const backend = spawn('npx', ['tsx', 'server/index.ts'], {
-    env: { ...process.env, PORT: String(BACKEND_PORT) },
-    stdio: 'inherit',
-  })
-
-  console.log('Starting backend...')
-  await waitForServer(BACKEND_PORT)
-  console.log('Backend ready on http://127.0.0.1:13001')
-
-  // 2. 启动前端
-  const frontend = spawn('npx', ['vite', '--port', String(FRONTEND_PORT)], {
-    stdio: 'inherit',
-  })
-
-  console.log('Starting frontend...')
-  await waitForServer(FRONTEND_PORT)
-  console.log('Frontend ready on http://localhost:13000')
-
-  // 3. 打开浏览器
-  const platform = process.platform
-  const url = `http://localhost:${FRONTEND_PORT}`
-  if (platform === 'win32') {
-    exec(`start "" "${url}"`)
-  } else if (platform === 'darwin') {
-    exec(`open "${url}"`)
-  } else {
-    exec(`xdg-open "${url}"`)
-  }
-
-  // 4. 优雅退出
-  process.on('SIGINT', () => {
-    backend.kill()
-    frontend.kill()
-    process.exit()
-  })
-}
-
-start()
-```
-
-添加 npm script：
-```json
-"start:dev": "node scripts/start.js"
-```
+两个脚本功能一致：
+1. 检查 node_modules 是否存在，不存在则自动执行 npm install
+2. 清理端口 13001 和 13000 上的旧进程
+3. 启动后端 (tsx server/index.ts)
+4. 等待 3 秒后启动前端 (vite --port=13000)
+5. 监听两个服务进程，任一退出则报错
 
 #### 5.4 需要同步修改的文件
 
@@ -489,7 +425,7 @@ className="bg-stone-900/50 border border-stone-700 rounded-2xl ... backdrop-blur
 | #2 VS Code EINVAL | `actions.ts` | 可能移除 vscode 按钮 | - | - |
 | #3 Git 分支列表 | `git.ts` + `types.ts` | `GitStatusBadge.tsx` + `ProjectDetail.tsx` | `GitStatus` 加字段 | - |
 | #4 自定义分类 | `scanner.ts` + `api.ts` + `types.ts` | `Sidebar.tsx` + `ProjectCard.tsx` + `App.tsx` | `AppConfig` + `Project` 加字段 | - |
-| #5 启动脚本 | - | `vite.config.ts` (proxy port) | - | `package.json` + 新建 `scripts/start.js` `scripts/start.cmd` `scripts/start.sh` |
+| #5 启动脚本 | - | `vite.config.ts` (proxy port) | - | `package.json` + 新建 `scripts/start.ps1` `scripts/start.sh` |
 | #6 面板对比度 | - | `SettingsPanel.tsx` + `ProjectDetail.tsx` | - | - |
 
 ---

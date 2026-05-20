@@ -67,8 +67,8 @@ Express 后端 (localhost:3001)
 
 ### 进程模型
 
-- **开发环境**：Vite dev server (3000) + Express (3001)，Vite proxy 转发 `/api/*` 到后端
-- **生产环境**：Express 同时托管静态前端文件 + API，单端口 (3000) 运行
+- **开发环境**：Vite dev server (13000) + Express (13001)，Vite proxy 转发 `/api/*` 到后端
+- **生产环境**：Express 同时托管静态前端文件 + API，单端口 (13001) 运行
 
 ---
 
@@ -88,8 +88,14 @@ Express 后端 (localhost:3001)
 {
   "scanDirectories": ["~/Workspace", "~/Projects"],
   "scanDepth": 3,
-  "excludePatterns": ["node_modules", ".git", "dist", "build"],
-  "lastScanTime": "2026-05-20T10:30:00Z"
+  "excludePatterns": ["node_modules", ".git", "dist", "build", ".next", "__pycache__", "target"],
+  "lastScanTime": "2026-05-20T10:30:00Z",
+  "customCategories": [
+    { "id": "work", "name": "Work", "color": "#f97316" },
+    { "id": "personal", "name": "Personal", "color": "#22c55e" }
+  ],
+  "preferredIde": "vscode",
+  "language": "en"
 }
 ```
 
@@ -105,6 +111,7 @@ Express 后端 (localhost:3001)
       "type": "React",
       "projectFile": "package.json",
       "tags": ["Frontend", "Vite", "Tailwind"],
+      "customCategory": "work",
       "firstSeen": "2026-01-15T08:00:00Z",
       "lastScanned": "2026-05-20T10:30:00Z"
     }
@@ -126,11 +133,11 @@ Express 后端 (localhost:3001)
 
 | 特征文件 | 项目类型 |
 |----------|----------|
-| `package.json` (deps 含 react/vue/svelte) | 对应框架 |
+| `package.json` (deps 含 react/vue/svelte/next/nuxt) | 对应框架 |
 | `package.json` (通用) | Node.js / JavaScript |
 | `go.mod` | Go |
 | `Cargo.toml` | Rust |
-| `requirements.txt` / `pyproject.toml` | Python |
+| `requirements.txt` / `pyproject.toml` / `Pipfile` | Python |
 | `.csproj` / `.sln` | .NET |
 | `pom.xml` / `build.gradle` | Java / Kotlin |
 | `CMakeLists.txt` | C / C++ |
@@ -155,11 +162,12 @@ interface ApiResponse<T> {
 | Method | Path | 描述 |
 |--------|------|------|
 | `GET` | `/api/projects` | 获取项目列表 |
-| `GET` | `/api/projects/:id` | 获取单个项目详情 |
+| `GET` | `/api/projects/:id` | 获取单个项目详情（含 README 全文） |
 | `POST` | `/api/scan` | 触发目录扫描 |
 | `GET` | `/api/config` | 获取当前配置 |
 | `PUT` | `/api/config` | 更新配置 |
-| `POST` | `/api/open` | 执行快捷操作 |
+| `POST` | `/api/open` | 执行快捷操作（IDE/终端/文件夹） |
+| `GET` | `/api/ides` | 获取可用 IDE 列表 |
 
 ### 5.2 端点详情
 
@@ -185,11 +193,11 @@ Body:
 ```json
 {
   "projectId": "a1b2c3",
-  "action": "vscode" | "terminal" | "folder" | "browser"
+  "action": "vscode" | "terminal" | "folder" | string (any IDE command like "cursor", "codebuddy-cn", etc.)
 }
 ```
 
-执行对应系统命令打开项目。
+执行对应系统命令打开项目。支持动态 IDE 命令（不在枚举中的 action 也接受，按原样执行）。
 
 ---
 

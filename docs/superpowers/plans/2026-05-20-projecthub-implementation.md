@@ -20,8 +20,9 @@ server/
 ├── services/
 │   ├── config.ts         ~/.projecthub/config.json read/write
 │   ├── scanner.ts        Directory traversal + project detection
-│   ├── git.ts            git status branch + porcelain parsing
-│   └── actions.ts        Open VS Code / terminal / folder
+│   ├── git.ts            git status branch + porcelain + all branches
+│   ├── actions.ts        Open VS Code / terminal / folder / dynamic IDE
+│   └── ides.ts           Static IDE list (no detection)
 └── routes/
     └── api.ts            All /api/* route handlers
 ```
@@ -78,6 +79,7 @@ export interface Project {
   type: string
   projectFile: string
   tags: string[]
+  customCategory: string | null
   firstSeen: string
   lastScanned: string
 }
@@ -88,6 +90,7 @@ export interface ProjectList {
 
 export interface GitStatus {
   branch: string
+  allBranches: string[]
   ahead: number
   behind: number
   modified: string[]
@@ -103,14 +106,30 @@ export interface ProjectDetail extends Project {
   lastModified: string
 }
 
+export interface CategoryDefinition {
+  id: string
+  name: string
+  color: string
+}
+
 export interface AppConfig {
   scanDirectories: string[]
   scanDepth: number
   excludePatterns: string[]
   lastScanTime: string | null
+  customCategories: CategoryDefinition[]
+  preferredIde: string | null
+  language: string
 }
 
-export type OpenAction = 'vscode' | 'terminal' | 'folder'
+export interface IdeInfo {
+  id: string
+  name: string
+  command: string
+  detected: boolean
+}
+
+export type OpenAction = 'vscode' | 'terminal' | 'folder' | string
 
 export interface ApiResponse<T> {
   success: boolean
@@ -131,6 +150,9 @@ export const DEFAULT_CONFIG: AppConfig = {
   scanDepth: 3,
   excludePatterns: ['node_modules', '.git', 'dist', 'build', '.next', '__pycache__', 'target'],
   lastScanTime: null,
+  customCategories: [],
+  preferredIde: null,
+  language: 'en',
 }
 ```
 

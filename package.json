@@ -5,13 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000",
-    "dev:server": "tsx watch server/index.ts",
+    "dev:server": "tsx server/index.ts",
     "build": "vite build",
-    "build:server": "esbuild server/index.ts --bundle --platform=node --outfile=dist-server/server.js --format=esm",
-    "build:all": "vite build && npm run build:server",
-    "start": "node dist-server/server.js",
+    "build:all": "vite build && echo 'Server uses tsx - no build needed'",
+    "start": "tsx server/index.ts",
     "preview": "vite preview",
-    "clean": "rm -rf dist dist-server",
+    "clean": "rm -rf dist",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

@@ -1,15 +1,14 @@
-import { useState, useMemo, useCallback } from 'react'
-import { executeOpenAction } from './api/client'
+import { useState, useMemo, useCallback, useEffect } from 'react'
+import { executeOpenAction, updateProjectCategory, fetchIdes } from './api/client'
 import { useProjects } from './hooks/useProjects'
 import { useConfig } from './hooks/useConfig'
 import { Sidebar } from './components/Sidebar'
 import { SearchHeader } from './components/SearchHeader'
-import { ProjectGrid } from './components/ProjectGrid'
 import { ProjectDetailPanel } from './components/ProjectDetail'
 import { SettingsPanel } from './components/SettingsPanel'
-import { EmptyState } from './components/EmptyState'
-import { SkeletonLoader } from './components/SkeletonLoader'
-import type { ProjectDetail, TypeGroup } from './types'
+import { MainContent } from './components/MainContent'
+import { I18nProvider } from './i18n'
+import type { ProjectDetail, TypeGroup, IdeInfo } from './types'
 
 export default function App() {
   const { projects, loading, scanning, error, scan } = useProjects()
@@ -19,6 +18,11 @@ export default function App() {
   const [selectedProject, setSelectedProject] = useState<ProjectDetail | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [ides, setIdes] = useState<IdeInfo[]>([])
+
+  useEffect(() => {
+    fetchIdes().then(setIdes).catch(() => {})
+  }, [])
 
   const filteredProjects = useMemo(() => {
     let result = projects
@@ -31,12 +35,17 @@ export default function App() {
       )
     }
     if (activeCategory !== 'All') {
-      result = result.filter(
-        (p) => p.type === activeCategory || p.tags.includes(activeCategory)
-      )
+      const isCustomCat = config?.customCategories.some(c => c.id === activeCategory)
+      if (isCustomCat) {
+        result = result.filter((p) => p.customCategory === activeCategory)
+      } else {
+        result = result.filter(
+          (p) => p.type === activeCategory || p.tags.includes(activeCategory)
+        )
+      }
     }
     return result
-  }, [projects, searchQuery, activeCategory])
+  }, [projects, searchQuery, activeCategory, config])
 
   const typeGroups = useMemo((): TypeGroup[] => {
     const counts = new Map<string, number>()
@@ -46,7 +55,7 @@ export default function App() {
       .sort((a, b) => b.count - a.count)
   }, [projects])
 
-  const handleOpenAction = useCallback(async (projectId: string, action: 'vscode' | 'terminal' | 'folder') => {
+  const handleOpenAction = useCallback(async (projectId: string, action: string) => {
     setActionError(null)
     try {
       await executeOpenAction(projectId, action)
@@ -55,83 +64,82 @@ export default function App() {
     }
   }, [])
 
+  const onRefresh = useCallback(() => {
+    scan()
+  }, [scan])
+
+  const handleCategoryChange = useCallback(async (projectId: string, categoryId: string | null) => {
+    try {
+      await updateProjectCategory(projectId, categoryId)
+      onRefresh()
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to update category')
+    }
+  }, [onRefresh])
+
   const noScanDirs = config && config.scanDirectories.length === 0
   const noResults = !loading && !scanning && projects.length > 0 && filteredProjects.length === 0
   const isEmpty = !loading && !scanning && projects.length === 0
 
   return (
-    <div className="flex h-screen bg-stone-950 text-stone-300 font-sans overflow-hidden">
-      <Sidebar
-        typeGroups={typeGroups}
-        activeCategory={activeCategory}
-        onCategoryChange={setActiveCategory}
-        onSettingsClick={() => setSettingsOpen(true)}
-      />
-
-      <div className="flex-1 flex flex-col min-w-0">
-        <SearchHeader
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          onScan={scan}
-          scanning={scanning}
-          lastScanTime={config?.lastScanTime || null}
-          projectCount={projects.length}
+    <I18nProvider initialLang={(config?.language as 'en' | 'zh') || 'en'}>
+      <div className="flex h-screen bg-stone-950 text-stone-300 font-sans overflow-hidden">
+        <Sidebar
+          typeGroups={typeGroups}
+          customCategories={config?.customCategories || []}
+          projects={projects}
+          activeCategory={activeCategory}
+          onCategoryChange={setActiveCategory}
+          onSettingsClick={() => setSettingsOpen(true)}
         />
 
-        <main className="flex-1 overflow-y-auto p-8">
-          <div className="mb-8">
-            <h1 className="text-2xl font-semibold text-stone-100 flex items-center gap-2">
-              {activeCategory === 'All' ? 'All Projects' : `${activeCategory} Projects`}
-              <span className="text-stone-500 text-lg font-normal">({filteredProjects.length})</span>
-            </h1>
-            <p className="text-stone-400 text-sm mt-1">
-              {projects.length > 0
-                ? 'Manage and explore your local development workspace.'
-                : 'Configure scan directories to discover your projects.'}
-            </p>
-          </div>
+        <div className="flex-1 flex flex-col min-w-0">
+          <SearchHeader
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            onScan={scan}
+            scanning={scanning}
+            lastScanTime={config?.lastScanTime || null}
+            projectCount={projects.length}
+          />
 
-          {error && (
-            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">{error}</div>
-          )}
+          <MainContent
+            activeCategory={activeCategory}
+            filteredProjects={filteredProjects}
+            loading={loading}
+            scanning={scanning}
+            error={error}
+            noScanDirs={!!noScanDirs}
+            isEmpty={isEmpty}
+            noResults={noResults}
+            ides={ides}
+            preferredIde={config?.preferredIde || null}
+            onOpenAction={handleOpenAction}
+            onProjectClick={setSelectedProject}
+            onSettingsOpen={() => setSettingsOpen(true)}
+            actionError={actionError}
+            onDismissError={() => setActionError(null)}
+          />
+        </div>
 
-          {actionError && (
-            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm flex justify-between items-center">
-              <span>{actionError}</span>
-              <button onClick={() => setActionError(null)} className="text-stone-400 hover:text-stone-200">Dismiss</button>
-            </div>
-          )}
+        <ProjectDetailPanel
+          project={selectedProject}
+          customCategories={config?.customCategories || []}
+          ides={ides}
+          preferredIde={config?.preferredIde || null}
+          onClose={() => setSelectedProject(null)}
+          onOpenAction={handleOpenAction}
+          onCategoryChange={handleCategoryChange}
+          onRefresh={onRefresh}
+        />
 
-          {loading && !scanning ? (
-            <SkeletonLoader count={6} />
-          ) : noScanDirs ? (
-            <EmptyState type="no-config" onAction={() => setSettingsOpen(true)} />
-          ) : isEmpty ? (
-            <EmptyState type="no-projects" />
-          ) : noResults ? (
-            <EmptyState type="no-results" />
-          ) : (
-            <ProjectGrid
-              projects={filteredProjects}
-              onOpenAction={handleOpenAction}
-              onProjectClick={setSelectedProject}
-            />
-          )}
-        </main>
+        <SettingsPanel
+          open={settingsOpen}
+          config={config}
+          onClose={() => setSettingsOpen(false)}
+          onSave={saveConfig}
+        />
       </div>
-
-      <ProjectDetailPanel
-        project={selectedProject}
-        onClose={() => setSelectedProject(null)}
-        onOpenAction={handleOpenAction}
-      />
-
-      <SettingsPanel
-        open={settingsOpen}
-        config={config}
-        onClose={() => setSettingsOpen(false)}
-        onSave={saveConfig}
-      />
-    </div>
+    </I18nProvider>
   )
 }
