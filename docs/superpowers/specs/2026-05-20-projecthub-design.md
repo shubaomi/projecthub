@@ -123,8 +123,8 @@ Express 后端 (localhost:3001)
 
 | 数据 | 获取方式 | 理由 |
 |------|----------|------|
-| Git 状态 | `git -C <path> status --porcelain -b` | 实时性要求高，不缓存 |
-| README 摘要 | 读取 `README.md` 前 500 字符 | 文件内容，不缓存 |
+| Git 状态 | `GET /api/projects/:id/git`（按需，列表页并发加载，最多 8 并发） | 实时性要求高，不缓存；列表阶段不阻塞首屏 |
+| README 摘要 | 读取 `README.md` 前 200 字符 | 文件内容，不缓存 |
 | 最近修改 | 文件系统 stat | 始终最新 |
 
 ### 4.5 项目类型识别
@@ -160,32 +160,31 @@ interface ApiResponse<T> {
 
 | Method | Path | 描述 |
 |--------|------|------|
-| `GET` | `/api/projects` | 获取项目列表 |
+| `GET` | `/api/projects` | 获取项目列表（不含 Git 状态，Git 状态通过 `/projects/:id/git` 按需获取） |
 | `GET` | `/api/projects/:id` | 获取单个项目详情（含 README 全文） |
+| `GET` | `/api/projects/:id/git` | 获取单个项目的 Git 状态（按需加载，并发限制 8） |
 | `POST` | `/api/scan` | 触发目录扫描 |
 | `GET` | `/api/config` | 获取当前配置 |
 | `PUT` | `/api/config` | 更新配置 |
-| `POST` | `/api/open` | 执行快捷操作（IDE/终端/文件夹） |
 | `PATCH` | `/api/projects/:id/category` | 更新项目自定义分类 |
+| `POST` | `/api/open` | 执行快捷操作（IDE/终端/文件夹），action 参数每次通过 `detectIdes()` 校验白名单 |
 | `GET` | `/api/ides` | 获取可用 IDE 列表 |
 
 ### 5.2 端点详情
 
 #### `GET /api/projects`
 
-查询参数：`?search=xxx&type=React&tag=Frontend`
+无查询参数。返回所有已扫描项目的基本信息（不含 Git 状态），含 Git 状态徽章和 README 摘要。
 
-返回所有已扫描项目（含 Git 状态徽章和 README 摘要），支持搜索和筛选。
+> 性能说明：此端点不再在列表阶段调用 Git 命令，响应时间为 O(N×文件IO)，p95 < 200ms（50 个项目场景）。Git 状态通过 `/projects/:id/git` 单独按需加载。
 
 #### `GET /api/projects/:id`
 
-返回单个项目完整详情：基本信息 + Git 状态 + README 全文（截断至 2000 字符）。
+返回单个项目完整详情：基本信息 + Git 状态 + README 全文。
 
-#### `POST /api/scan`
+#### `GET /api/projects/:id/git`
 
-Body: `{}`（使用已配置的扫描目录）
-
-触发完整扫描，更新 `projects.json`，返回扫描结果摘要。
+返回单个项目的 GitStatus 对象。前端通过此接口按需并发加载 Git 状态，最多 8 个并发请求。
 
 #### `POST /api/open`
 
@@ -193,11 +192,11 @@ Body:
 ```json
 {
   "projectId": "a1b2c3",
-  "action": "vscode" | "terminal" | "folder" | string (any IDE command like "cursor", "codebuddy-cn", etc.)
+  "action": "vscode" | "terminal" | "folder" | string (IDE command like "cursor", "trae", etc.)
 }
 ```
 
-执行对应系统命令打开项目。支持动态 IDE 命令（不在枚举中的 action 也接受，按原样执行）。
+每次请求都调用 `detectIdes()` 校验 action 是否在白名单中。白名单 = `['vscode', 'terminal', 'folder', ...ides.map(i => i.command)]`。非白名单 action 返回 400。
 
 ---
 
@@ -289,7 +288,8 @@ App
 ## 8. 安全考量
 
 - 后端仅监听 `127.0.0.1`（localhost），不暴露到局域网
-- 快捷操作 (`POST /api/open`) 支持预定义 action（`vscode`/`terminal`/`folder`）和动态 IDE 命令（如 `cursor`、`trae-cn`），所有命令通过 `cmd.exe /c` 或 `open -a` 执行，不解析用户输入的 shell 表达式
+- 快捷操作 (`POST /api/open`) 每次请求都调用 `detectIdes()` 校验 action 白名单：标准 action（`vscode`/`terminal`/`folder`）+ 动态 IDE 命令（来自 `ides` 列表）。非白名单 action 返回 400，拒绝执行
+- 所有 IDE 命令通过 `cmd.exe /c` 或 `open -a` 执行，不解析用户输入的 shell 表达式
 - 不执行任何用户传入的 shell 命令
 - 扫描路径从配置读取，不接受 API 参数传入
 
@@ -310,7 +310,7 @@ App
 ### 9.2 项目列表展示 (AC-LIST)
 
 | AC-LIST-01 | 首页以卡片网格展示所有已扫描项目，含名称、类型图标、路径、标签 |
-| AC-LIST-02 | 每个项目卡片展示 Git 状态徽章（分支名 + 未提交文件数） |
+| AC-LIST-02 | 每个项目卡片展示 Git 状态徽章（分支名 + 未提交文件数），首次加载时显示 `…` 加载态，Git 状态在列表渲染后按需并发获取（最多 8 并发） |
 | AC-LIST-03 | 每个项目卡片展示 README 前 200 字符摘要 |
 | AC-LIST-04 | 项目为空时展示空状态，含引导文案 |
 | AC-LIST-05 | 侧边栏按项目类型动态生成分类标签，显示各类型项目数 |
@@ -329,7 +329,7 @@ App
 | AC-ACTIONS-02 | 点击"Terminal"按钮，在项目路径下打开系统终端 |
 | AC-ACTIONS-03 | 点击"Folder"按钮，在文件管理器中打开项目目录 |
 | AC-ACTIONS-04 | 操作失败时，显示具体错误提示（如"未安装 VS Code"） |
-| AC-ACTIONS-05 | `POST /api/open` 接受标准 action（vscode/terminal/folder）和动态 IDE 命令字符串，缺失参数时返回 400 |
+| AC-ACTIONS-05 | `POST /api/open` 每次请求校验 action 白名单（`detectIdes()` 返回的 IDE 命令 + 标准 action），非白名单返回 400 |
 
 ### 9.5 Git 状态 (AC-GIT)
 
@@ -338,6 +338,7 @@ App
 | AC-GIT-03 | 有未提交更改时显示文件变更数（modified/added/deleted） |
 | AC-GIT-04 | 有未推送提交时显示 ahead/behind 计数 |
 | AC-GIT-05 | git 命令执行失败时不阻塞页面，降级显示"Git 状态不可用" |
+| AC-GIT-06 | 列表页首次加载时 Git badge 显示 `…` 加载态（git 状态为 null），1-2 秒内陆续填充 |
 
 ### 9.6 README 预览 (AC-README)
 
@@ -371,29 +372,29 @@ App
 ## 10. 开发计划
 
 ### Phase 1: 后端核心 (Day 1-2)
-- [ ] Express 服务器搭建 (TypeScript + tsx)
-- [ ] Scanner 模块 — 目录扫描 + 项目发现
-- [ ] Config Service — 配置读写
-- [ ] Git Service — Git 状态查询
-- [ ] Actions Service — 快捷操作执行
-- [ ] API Routes — 所有端点
+- [x] Express 服务器搭建 (TypeScript + tsx)
+- [x] Scanner 模块 — 目录扫描 + 项目发现
+- [x] Config Service — 配置读写
+- [x] Git Service — Git 状态查询
+- [x] Actions Service — 快捷操作执行
+- [x] API Routes — 所有端点（含后来新增的 `/projects/:id/git`）
 
 ### Phase 2: 前后端连接 (Day 3)
-- [ ] Vite proxy 配置
-- [ ] 前端 API 调用层（替代 mock 数据）
-- [ ] 扫描/加载状态处理
-- [ ] 错误处理
+- [x] Vite proxy 配置
+- [x] 前端 API 调用层（替代 mock 数据）
+- [x] 扫描/加载状态处理
+- [x] 错误处理
 
 ### Phase 3: UI 增强 (Day 4)
-- [ ] GitStatusBadge 组件
-- [ ] ReadmeExcerpt 组件
-- [ ] QuickActions 接通真实功能
-- [ ] ProjectDetail 面板
-- [ ] Settings 面板
-- [ ] 骨架屏 / 空状态
+- [x] GitStatusBadge 组件
+- [x] ReadmeExcerpt 组件
+- [x] QuickActions 接通真实功能
+- [x] ProjectDetail 面板
+- [x] Settings 面板
+- [x] 骨架屏 / 空状态
 
 ### Phase 4: 打磨 (Day 5)
-- [ ] 跨平台兼容测试
-- [ ] 错误边界和容错
-- [ ] 生产构建脚本
-- [ ] README 更新
+- [x] 跨平台兼容测试
+- [x] 错误边界和容错
+- [x] 生产构建脚本
+- [x] README 更新

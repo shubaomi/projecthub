@@ -2,10 +2,19 @@ import { GitBranch } from 'lucide-react'
 import type { GitStatus } from '../types'
 
 interface GitStatusBadgeProps {
-  git: GitStatus
+  git: GitStatus | null
 }
 
 export function GitStatusBadge({ git }: GitStatusBadgeProps) {
+  if (git === null) {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-stone-600 animate-pulse">
+        <GitBranch size={12} />
+        <span>…</span>
+      </div>
+    )
+  }
+
   if (!git.isRepo) return null
 
   const changeCount = git.modified.length + git.added.length + git.deleted.length + git.untracked.length

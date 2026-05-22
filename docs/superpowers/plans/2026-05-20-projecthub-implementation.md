@@ -21,10 +21,19 @@ server/
 │   ├── config.ts         ~/.projecthub/config.json read/write
 │   ├── scanner.ts        Directory traversal + project detection
 │   ├── git.ts            git status branch + porcelain + all branches
-│   ├── actions.ts        Open VS Code / terminal / folder / dynamic IDE
-│   └── ides.ts           Static IDE list (no detection)
+│   ├── actions.ts        Open VS Code / terminal / folder / dynamic IDE (cmd.exe /c or open -a)
+│   └── ides.ts           Static hardcoded IDE list (no detection), platform-specific
 └── routes/
     └── api.ts            All /api/* route handlers
+      GET  /projects              — list all projects (no git, fast)
+      GET  /projects/:id          — project detail with full git + readme
+      GET  /projects/:id/git      — git status only (on-demand)
+      POST /scan                  — trigger scan
+      GET  /config                — read config
+      PUT  /config                — write config
+      PATCH /projects/:id/category — update custom category
+      POST /open                  — execute IDE action (whitelist validated each request)
+      GET  /ides                  — available IDE list
 ```
 
 ### Frontend (`src/`)
@@ -672,170 +681,22 @@ git commit -m "feat: add quick actions service for vscode/terminal/folder"
 **Files:**
 - Create: `server/routes/api.ts`
 
-- [ ] **Step 1: Write the API routes**
+**Current implementation highlights:**
 
-```typescript
-// server/routes/api.ts
-import { Router, Request, Response } from 'express'
-import fs from 'node:fs'
-import path from 'node:path'
-import { scan, loadProjects, getProjectById } from '../services/scanner.js'
-import { getGitStatus } from '../services/git.js'
-import { executeAction } from '../services/actions.js'
-import { readConfig, writeConfig } from '../services/config.js'
-import { ApiResponse, ProjectDetail, OpenAction } from '../types.js'
+- `GET /projects` — no longer calls `getGitStatus()` per project; returns list fast (O(N×fileIO))
+- `GET /projects/:id/git` — new endpoint for on-demand git status per project
+- `POST /open` — calls `detectIdes()` on each request to build whitelist; rejects non-whitelisted actions with 400
 
-const VALID_ACTIONS: OpenAction[] = ['vscode', 'terminal', 'folder']
+- [ ] **Step 2: Verify API endpoints**
+```bash
+curl -s http://127.0.0.1:3001/api/projects | jq '.success, .data[0].git'
+# Should show: true, null (git not in list response)
 
-export function createApiRouter(): Router {
-  const router = Router()
-
-  router.get('/projects', (_req: Request, res: Response) => {
-    try {
-      const projects = loadProjects()
-      const search = (_req.query.search as string || '').toLowerCase()
-      const type = _req.query.type as string | undefined
-      const tag = _req.query.tag as string | undefined
-
-      let filtered = projects
-      if (search) {
-        filtered = filtered.filter(
-          (p) =>
-            p.name.toLowerCase().includes(search) ||
-            p.tags.some((t) => t.toLowerCase().includes(search)) ||
-            p.path.toLowerCase().includes(search)
-        )
-      }
-      if (type) filtered = filtered.filter((p) => p.type === type)
-      if (tag) filtered = filtered.filter((p) => p.tags.includes(tag))
-
-      const withDetails = filtered.map((p) => {
-        const readme = readReadmeExcerpt(p.path, 200)
-        const git = getGitStatus(p.path)
-        let lastModified = ''
-        try { const stat = fs.statSync(p.path); lastModified = stat.mtime.toISOString() } catch { /* stale */ }
-        return { ...p, git, readme, lastModified }
-      })
-
-      const response: ApiResponse<ProjectDetail[]> = { success: true, data: withDetails }
-      res.json(response)
-    } catch (error) {
-      const response: ApiResponse<null> = {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }
-      res.status(500).json(response)
-    }
-  })
-
-  router.get('/projects/:id', (req: Request, res: Response) => {
-    try {
-      const project = getProjectById(req.params.id)
-      if (!project) {
-        res.status(404).json({ success: false, error: 'Project not found' })
-        return
-      }
-      const detail: ProjectDetail = {
-        ...project,
-        git: getGitStatus(project.path),
-        readme: readReadmeContent(project.path, 2000),
-        lastModified: (() => { try { return fs.statSync(project.path).mtime.toISOString() } catch { return '' } })(),
-      }
-      res.json({ success: true, data: detail } as ApiResponse<ProjectDetail>)
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      } as ApiResponse<null>)
-    }
-  })
-
-  router.post('/scan', async (_req: Request, res: Response) => {
-    try {
-      const result = scan()
-      res.json({ success: true, data: result } as ApiResponse<typeof result>)
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      } as ApiResponse<null>)
-    }
-  })
-
-  router.get('/config', (_req: Request, res: Response) => {
-    try {
-      const config = readConfig()
-      res.json({ success: true, data: config } as ApiResponse<typeof config>)
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      } as ApiResponse<null>)
-    }
-  })
-
-  router.put('/config', (req: Request, res: Response) => {
-    try {
-      const config = readConfig()
-      const updated = { ...config, ...req.body }
-      writeConfig(updated)
-      res.json({ success: true, data: updated } as ApiResponse<typeof updated>)
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      } as ApiResponse<null>)
-    }
-  })
-
-  router.post('/open', async (req: Request, res: Response) => {
-    try {
-      const { projectId, action } = req.body
-      if (!projectId || !action) {
-        res.status(400).json({ success: false, error: 'Missing projectId or action' } as ApiResponse<null>)
-        return
-      }
-      if (!VALID_ACTIONS.includes(action as OpenAction)) {
-        res.status(400).json({
-          success: false,
-          error: `Invalid action: ${action}. Must be one of: ${VALID_ACTIONS.join(', ')}`,
-        } as ApiResponse<null>)
-        return
-      }
-      const msg = await executeAction(projectId, action as OpenAction)
-      res.json({ success: true, data: { message: msg } } as ApiResponse<{ message: string }>)
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      } as ApiResponse<null>)
-    }
-  })
-
-  return router
-}
-
-function readReadmeExcerpt(projectPath: string, maxLen: number): string | null {
-  const readmePath = findReadme(projectPath)
-  if (!readmePath) return null
-  try { return fs.readFileSync(readmePath, 'utf-8').slice(0, maxLen) } catch { return null }
-}
-
-function readReadmeContent(projectPath: string, maxLen: number): string | null {
-  return readReadmeExcerpt(projectPath, maxLen)
-}
-
-function findReadme(projectPath: string): string | null {
-  const candidates = ['README.md', 'readme.md', 'Readme.md', 'README.MD']
-  for (const name of candidates) {
-    const p = path.join(projectPath, name)
-    if (fs.existsSync(p)) return p
-  }
-  return null
-}
+curl -s http://127.0.0.1:3001/api/projects/452fb6dd/git | jq '.success, .data.branch'
+# Should show: true, "main" (or actual branch)
 ```
 
-- [ ] **Step 2: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
 git add server/routes/api.ts
@@ -913,6 +774,7 @@ git commit -m "feat: add Express server entry point with API and static serving"
 
 export interface GitStatus {
   branch: string
+  allBranches: string[]
   ahead: number
   behind: number
   modified: string[]
@@ -929,14 +791,21 @@ export interface Project {
   type: string
   projectFile: string
   tags: string[]
+  customCategory: string | null
   firstSeen: string
   lastScanned: string
 }
 
 export interface ProjectDetail extends Project {
-  git: GitStatus
+  git: GitStatus | null   // null while loading (lazy-loaded after list render)
   readme: string | null
   lastModified: string
+}
+
+export interface CategoryDefinition {
+  id: string
+  name: string
+  color: string
 }
 
 export interface AppConfig {
@@ -944,6 +813,9 @@ export interface AppConfig {
   scanDepth: number
   excludePatterns: string[]
   lastScanTime: string | null
+  customCategories: CategoryDefinition[]
+  preferredIde: string | null
+  language: string
 }
 
 export interface ScanResult {
@@ -960,7 +832,15 @@ export interface ApiResponse<T> {
   error?: string
 }
 
-export type OpenAction = 'vscode' | 'terminal' | 'folder'
+export interface IdeInfo {
+  id: string
+  name: string
+  command: string
+  detected: boolean
+  platform?: 'win32' | 'darwin' | 'all'
+}
+
+export type OpenAction = 'vscode' | 'terminal' | 'folder' | string
 
 export interface TypeGroup {
   type: string
@@ -1048,64 +928,52 @@ git commit -m "feat: add frontend API client layer"
 - Create: `src/hooks/useProjects.ts`
 - Create: `src/hooks/useConfig.ts`
 
-- [ ] **Step 1: Write useProjects hook**
+**Current implementation highlights:**
+
+- `useProjects` hook initializes `git: null` for all projects, then lazy-loads git status via `fetchProjectGit()` with `pMapLimit(8)` concurrency pool
+- Git status "light up" progressively as each fetch completes
+- Non-fatal: individual git fetch failures leave `git: null` (no error thrown)
+
+- [ ] **Step 1: Write useProjects hook** (current implementation)
 
 ```typescript
 // src/hooks/useProjects.ts
-import { useState, useCallback, useEffect } from 'react'
-import type { ProjectDetail, ScanResult } from '../types'
-import { fetchProjects, triggerScan } from '../api/client'
-
-interface UseProjectsReturn {
-  projects: ProjectDetail[]
-  loading: boolean
-  scanning: boolean
-  error: string | null
-  scan: () => Promise<ScanResult>
-  refresh: () => Promise<void>
+async function pMapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  let cursor = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const i = cursor++
+      results[i] = await fn(items[i])
+    }
+  })
+  await Promise.all(workers)
+  return results
 }
 
 export function useProjects(): UseProjectsReturn {
-  const [projects, setProjects] = useState<ProjectDetail[]>([])
-  const [loading, setLoading] = useState(true)
-  const [scanning, setScanning] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
+  // ...state setup...
   const refresh = useCallback(async () => {
     setLoading(true)
-    setError(null)
-    try {
-      const data = await fetchProjects()
-      setProjects(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load projects')
-    } finally {
-      setLoading(false)
-    }
+    const data = await fetchProjects()
+    const withNullGit = data.map(p => ({ ...p, git: null as GitStatus | null }))
+    setProjects(withNullGit)
+
+    await pMapLimit(withNullGit, 8, async (p) => {
+      try {
+        const git = await fetchProjectGit(p.id)
+        setProjects(prev => prev.map(existing => existing.id === p.id ? { ...existing, git } : existing))
+      } catch {
+        // non-fatal: leave git as null
+      }
+    })
+    // ...
   }, [])
-
-  const scan = useCallback(async () => {
-    setScanning(true)
-    setError(null)
-    try {
-      const result = await triggerScan()
-      await refresh()
-      return result
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Scan failed')
-      throw err
-    } finally {
-      setScanning(false)
-    }
-  }, [refresh])
-
-  useEffect(() => { refresh() }, [refresh])
-
-  return { projects, loading, scanning, error, scan, refresh }
+  // ...
 }
 ```
 
-- [ ] **Step 2: Write useConfig hook**
+- [ ] **Step 2: Write useConfig hook** (unchanged)
 
 ```typescript
 // src/hooks/useConfig.ts
@@ -1121,48 +989,6 @@ interface UseConfigReturn {
   refresh: () => Promise<void>
 }
 
-export function useConfig(): UseConfigReturn {
-  const [config, setConfig] = useState<AppConfig | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const refresh = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await fetchConfig()
-      setConfig(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load config')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  const save = useCallback(async (updates: Partial<AppConfig>) => {
-    setError(null)
-    try {
-      const updated = await updateConfig(updates)
-      setConfig(updated)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save config')
-      throw err
-    }
-  }, [])
-
-  useEffect(() => { refresh() }, [refresh])
-
-  return { config, loading, error, save, refresh }
-}
-```
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add src/hooks/useProjects.ts src/hooks/useConfig.ts
-git commit -m "feat: add useProjects and useConfig data hooks"
-```
-
 ---
 
 ## Chunk 5: Frontend Components — Cards, Grid, Sidebar, Search
@@ -1172,39 +998,27 @@ git commit -m "feat: add useProjects and useConfig data hooks"
 **Files:**
 - Create: `src/components/GitStatusBadge.tsx`
 
-- [ ] **Step 1: Write the component**
+**Current implementation highlights:**
+
+- Accepts `git: GitStatus | null` (handles null while loading)
+- Shows animated `…` placeholder with pulse effect when `git === null`
+- Non-git-repo (`!git.isRepo`) returns `null` (no badge shown)
+
+- [ ] **Step 1: Write the component** (current implementation)
 
 ```typescript
-import { GitBranch } from 'lucide-react'
-import type { GitStatus } from '../types'
-
-interface GitStatusBadgeProps {
-  git: GitStatus
-}
-
+// src/components/GitStatusBadge.tsx
 export function GitStatusBadge({ git }: GitStatusBadgeProps) {
+  if (git === null) {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-stone-600 animate-pulse">
+        <GitBranch size={12} />
+        <span>…</span>
+      </div>
+    )
+  }
   if (!git.isRepo) return null
-
-  const changeCount = git.modified.length + git.added.length + git.deleted.length + git.untracked.length
-  const hasChanges = changeCount > 0
-  const hasRemote = git.ahead > 0 || git.behind > 0
-
-  return (
-    <div
-      className="flex items-center gap-1.5 text-xs"
-      title={hasChanges ? `M:${git.modified.length} A:${git.added.length} D:${git.deleted.length} ??:${git.untracked.length}` : 'Clean working tree'}
-    >
-      <GitBranch size={12} className={hasChanges ? 'text-amber-400' : 'text-emerald-400'} />
-      <span className="text-stone-400">{git.branch}</span>
-      {hasChanges && <span className="text-amber-400 font-medium">{changeCount}</span>}
-      {hasRemote && (
-        <span className="text-stone-500">
-          {git.ahead > 0 && `↑${git.ahead}`}
-          {git.behind > 0 && `↓${git.behind}`}
-        </span>
-      )}
-    </div>
-  )
+  // ...branch + change count rendering
 }
 ```
 

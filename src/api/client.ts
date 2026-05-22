@@ -1,5 +1,5 @@
 // src/api/client.ts
-import type { ApiResponse, ProjectDetail, AppConfig, ScanResult, Project, IdeInfo } from '../types'
+import type { ApiResponse, ProjectDetail, AppConfig, ScanResult, Project, IdeInfo, GitStatus } from '../types'
 
 const BASE_URL = '/api'
 
@@ -13,17 +13,16 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   return json.data as T
 }
 
-export function fetchProjects(params?: { search?: string; type?: string; tag?: string }): Promise<ProjectDetail[]> {
-  const searchParams = new URLSearchParams()
-  if (params?.search) searchParams.set('search', params.search)
-  if (params?.type) searchParams.set('type', params.type)
-  if (params?.tag) searchParams.set('tag', params.tag)
-  const qs = searchParams.toString()
-  return request<ProjectDetail[]>(`/projects${qs ? `?${qs}` : ''}`)
+export function fetchProjects(): Promise<ProjectDetail[]> {
+  return request<ProjectDetail[]>('/projects')
 }
 
 export function fetchProject(id: string): Promise<ProjectDetail> {
   return request<ProjectDetail>(`/projects/${encodeURIComponent(id)}`)
+}
+
+export function fetchProjectGit(id: string): Promise<GitStatus> {
+  return request<GitStatus>(`/projects/${encodeURIComponent(id)}/git`)
 }
 
 export function triggerScan(): Promise<ScanResult> {

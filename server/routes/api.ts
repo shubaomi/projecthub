@@ -15,28 +15,11 @@ export function createApiRouter(): Router {
   router.get('/projects', (_req: Request, res: Response) => {
     try {
       const projects = loadProjects()
-      const search = (_req.query.search as string || '').toLowerCase()
-      const type = _req.query.type as string | undefined
-      const tag = _req.query.tag as string | undefined
-
-      let filtered = projects
-      if (search) {
-        filtered = filtered.filter(
-          (p) =>
-            p.name.toLowerCase().includes(search) ||
-            p.tags.some((t) => t.toLowerCase().includes(search)) ||
-            p.path.toLowerCase().includes(search)
-        )
-      }
-      if (type) filtered = filtered.filter((p) => p.type === type)
-      if (tag) filtered = filtered.filter((p) => p.tags.includes(tag))
-
-      const withDetails = filtered.map((p) => {
+      const withDetails = projects.map((p) => {
         const readme = readReadmeExcerpt(p.path, 200)
-        const git = getGitStatus(p.path)
         let lastModified = ''
-        try { const stat = fs.statSync(p.path); lastModified = stat.mtime.toISOString() } catch { /* stale */ }
-        return { ...p, git, readme, lastModified }
+        try { lastModified = fs.statSync(p.path).mtime.toISOString() } catch { /* stale */ }
+        return { ...p, readme, lastModified }
       })
 
       const response: ApiResponse<ProjectDetail[]> = { success: true, data: withDetails }
@@ -64,6 +47,23 @@ export function createApiRouter(): Router {
         lastModified: (() => { try { return fs.statSync(project.path).mtime.toISOString() } catch { return '' } })(),
       }
       res.json({ success: true, data: detail } as ApiResponse<ProjectDetail>)
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      } as ApiResponse<null>)
+    }
+  })
+
+  router.get('/projects/:id/git', (req: Request, res: Response) => {
+    try {
+      const project = getProjectById(req.params.id)
+      if (!project) {
+        res.status(404).json({ success: false, error: 'Project not found' } as ApiResponse<null>)
+        return
+      }
+      const git = getGitStatus(project.path)
+      res.json({ success: true, data: git } as ApiResponse<typeof git>)
     } catch (error) {
       res.status(500).json({
         success: false,
@@ -138,17 +138,18 @@ export function createApiRouter(): Router {
         res.status(400).json({ success: false, error: 'Missing projectId or action' } as ApiResponse<null>)
         return
       }
+
       const STANDARD_ACTIONS = ['vscode', 'terminal', 'folder']
-      const isIdeAction = !STANDARD_ACTIONS.includes(action)
-      if (STANDARD_ACTIONS.includes(action) || isIdeAction) {
-        const msg = await executeAction(projectId, action as OpenAction)
-        res.json({ success: true, data: { message: msg } } as ApiResponse<{ message: string }>)
-      } else {
-        res.status(400).json({
-          success: false,
-          error: `Invalid action: ${action}`,
-        } as ApiResponse<null>)
+      const ides = await detectIdes()
+      const allAllowed = new Set([...STANDARD_ACTIONS, ...ides.map(i => i.command)])
+
+      if (!allAllowed.has(action)) {
+        res.status(400).json({ success: false, error: `Invalid action: ${action}` } as ApiResponse<null>)
+        return
       }
+
+      const msg = await executeAction(projectId, action as OpenAction)
+      res.json({ success: true, data: { message: msg } } as ApiResponse<{ message: string }>)
     } catch (error) {
       res.status(500).json({
         success: false,

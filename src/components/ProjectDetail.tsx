@@ -129,7 +129,7 @@ export function ProjectDetailPanel({ project, customCategories, ides, preferredI
 
                 <DetailSection label={t('detail.gitStatus')}>
                   <GitStatusBadge git={project.git} />
-                  {project.git.isRepo && (
+                  {project.git?.isRepo && (
                     <div className="mt-2 text-xs text-stone-400 space-y-1">
                       {project.git.allBranches.length > 1 && (
                         <div>

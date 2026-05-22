@@ -29,7 +29,7 @@ export interface GitStatus {
 }
 
 export interface ProjectDetail extends Project {
-  git: GitStatus
+  git?: GitStatus
   readme: string | null
   lastModified: string
 }
