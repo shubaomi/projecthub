@@ -50,7 +50,7 @@ export function ProjectDetailPanel({ project, customCategories, ides, preferredI
           <motion.div
             initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed right-0 top-0 h-full w-[500px] bg-stone-950 border-l border-stone-800 z-50 overflow-y-auto"
+            className="fixed right-0 top-0 h-full w-full max-w-[100vw] sm:w-[500px] bg-stone-950 border-l border-stone-800 z-50 overflow-y-auto"
           >
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
@@ -193,7 +193,7 @@ export function ProjectDetailPanel({ project, customCategories, ides, preferredI
                   </DetailSection>
                 ) : null}
 
-                <div className="flex gap-3 pt-4">
+                <div className="flex flex-wrap gap-3 pt-4">
                   {(['terminal', 'folder'] as const).map((action) => {
                     const Icon = action === 'terminal' ? Terminal : Folder
                     const label = action === 'terminal' ? t('detail.openTerminal') : t('detail.openFolder')

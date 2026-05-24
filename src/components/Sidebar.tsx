@@ -144,10 +144,11 @@ function CategoryButton({ label, count, isActive, color, onClick }: CategoryButt
       className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between
         ${isActive ? 'bg-stone-800 text-stone-100 font-medium' : 'hover:bg-stone-800/50 text-stone-400 hover:text-stone-200'}`}
     >
-      <span className="flex items-center gap-3">
-        {color ? <Tag size={16} style={{ color }} /> : <LayoutGrid size={16} />}{label}
+      <span className="flex items-center gap-3 min-w-0">
+        {color ? <Tag size={16} style={{ color }} className="shrink-0" /> : <LayoutGrid size={16} className="shrink-0" />}
+        <span className="truncate">{label}</span>
       </span>
-      <span className="text-xs text-stone-500">{count}</span>
+      <span className="text-xs text-stone-500 shrink-0">{count}</span>
     </button>
   )
 }

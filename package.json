@@ -10,7 +10,7 @@
     "build:all": "vite build && echo 'Server uses tsx - no build needed'",
     "start": "tsx server/index.ts",
     "preview": "vite preview",
-    "clean": "rm -rf dist",
+    "clean": "node -e \"fs.rmSync('dist', { recursive: true, force: true })\"",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

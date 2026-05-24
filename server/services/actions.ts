@@ -5,6 +5,26 @@ import { OpenAction } from '../types.js'
 import { getProjectById } from './scanner.js'
 
 const osPlatform = platform()
+const POWERSHELL_START = [
+  '-NoProfile',
+  '-NonInteractive',
+  '-ExecutionPolicy',
+  'Bypass',
+  '-Command',
+  '$file=$args[0]; $arguments=@(); if ($args.Length -gt 1) { $arguments=$args[1..($args.Length-1)] }; Start-Process -FilePath $file -ArgumentList $arguments',
+]
+
+function launchCommand(command: string, args: string[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const childCommand = osPlatform === 'win32' ? 'powershell.exe' : command
+    const childArgs = osPlatform === 'win32' ? [...POWERSHELL_START, command, ...args] : args
+
+    execFile(childCommand, childArgs, (error) => {
+      if (error) reject(error)
+      else resolve()
+    })
+  })
+}
 
 export function executeAction(projectId: string, action: OpenAction): Promise<string> {
   const project = getProjectById(projectId)
@@ -16,34 +36,13 @@ export function executeAction(projectId: string, action: OpenAction): Promise<st
 
   // Handle IDE actions dynamically (any action not in the standard set)
   if (action !== 'vscode' && action !== 'terminal' && action !== 'folder') {
-    return new Promise((resolve, reject) => {
-      if (osPlatform === 'win32') {
-        // Windows: CLI command or .exe launcher
-        const isExeLauncher = action.startsWith('start')
-        const cmd = 'cmd.exe'
-        const args = isExeLauncher
-          ? ['/c', action, projectPath]
-          : ['/c', action, projectPath]
-        execFile(cmd, args, (error) => {
-          if (error) {
-            const friendlyMessage = error.code === 'ENOENT'
-              ? `${action} not found — check if it is installed and in PATH`
-              : `Failed to execute ${action}: the application could not be launched`
-            reject(new Error(friendlyMessage))
-          } else {
-            resolve(`Executed ${action} for ${project.name}`)
-          }
-        })
-      } else {
-        // macOS / Linux
-        execFile('open', ['-a', action, projectPath], (error) => {
-          if (error) {
-            reject(new Error(`${action} not found — check if it is installed`))
-          } else {
-            resolve(`Opened ${action} for ${project.name}`)
-          }
-        })
-      }
+    const launcher = osPlatform === 'darwin' ? 'open' : action
+    const args = osPlatform === 'darwin' ? ['-a', action, projectPath] : [projectPath]
+
+    return launchCommand(launcher, args)
+      .then(() => `Executed ${action} for ${project.name}`)
+      .catch(() => {
+        throw new Error(`${action} not found or could not be launched`)
     })
   }
 
@@ -54,8 +53,8 @@ export function executeAction(projectId: string, action: OpenAction): Promise<st
     switch (action) {
       case 'vscode':
         if (osPlatform === 'win32') {
-          shellCmd = 'cmd.exe'
-          args = ['/c', 'code', projectPath]
+          shellCmd = 'code'
+          args = [projectPath]
         } else {
           shellCmd = 'code'
           args = [projectPath]
@@ -94,12 +93,8 @@ export function executeAction(projectId: string, action: OpenAction): Promise<st
         return
     }
 
-    execFile(shellCmd!, args, (error) => {
-      if (error) {
-        reject(new Error(`Failed to execute ${action}: ${error.message}`))
-      } else {
-        resolve(`Executed ${action} for ${project.name}`)
-      }
-    })
+    launchCommand(shellCmd!, args)
+      .then(() => resolve(`Executed ${action} for ${project.name}`))
+      .catch((error) => reject(new Error(`Failed to execute ${action}: ${error.message}`)))
   })
 }

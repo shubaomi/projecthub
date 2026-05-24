@@ -1,4 +1,4 @@
-import { Search, RefreshCw } from 'lucide-react'
+import { Search, RefreshCw, X } from 'lucide-react'
 import { useI18n } from '../i18n'
 import { LanguageSwitcher } from './LanguageSwitcher'
 
@@ -26,7 +26,7 @@ export function SearchHeader({ searchQuery, onSearchChange, onScan, scanning, la
   const formattedTime = lastScanTime ? formatScanTime(lastScanTime, t) : null
 
   return (
-    <header className="h-20 border-b border-stone-800 flex items-center justify-between px-8 shrink-0">
+    <header className="min-h-20 border-b border-stone-800 flex flex-col gap-3 justify-center px-4 py-3 md:flex-row md:items-center md:justify-between md:px-8 shrink-0">
       <div className="flex-1 max-w-xl">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500" size={18} />
@@ -35,14 +35,24 @@ export function SearchHeader({ searchQuery, onSearchChange, onScan, scanning, la
             placeholder={t('search.placeholder')}
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full bg-stone-900 border border-stone-800 rounded-xl py-2 pl-10 pr-4 text-sm focus:outline-none focus:border-stone-600 focus:ring-1 focus:ring-stone-600 transition-all placeholder-stone-600 text-stone-200"
+            className="w-full bg-stone-900 border border-stone-800 rounded-xl py-2 pl-10 pr-10 text-sm focus:outline-none focus:border-stone-600 focus:ring-1 focus:ring-stone-600 transition-all placeholder-stone-600 text-stone-200"
           />
+          {searchQuery && (
+            <button
+              type="button"
+              title="Clear search"
+              onClick={() => onSearchChange('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-stone-500 hover:bg-stone-800 hover:text-stone-200 transition-colors"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
       </div>
-      <div className="flex items-center gap-4 ml-4">
+      <div className="flex w-full items-center justify-between gap-3 md:w-auto md:justify-end md:ml-4">
         <LanguageSwitcher />
         {formattedTime && (
-          <span className="text-xs text-stone-500">
+          <span className="hidden text-xs text-stone-500 sm:inline">
             {t('search.scannedAgo', { time: formattedTime, count: String(projectCount) })}
           </span>
         )}

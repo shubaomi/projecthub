@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { motion } from 'motion/react'
 import {
-  Code2, Folder, Terminal, MoreVertical, Globe, Server, ChevronDown, Tag,
+  Code2, Folder, Terminal, Globe, Server, ChevronDown, Tag,
 } from 'lucide-react'
 import type { ProjectDetail, IdeInfo, CategoryDefinition } from '../types'
 import { GitStatusBadge } from './GitStatusBadge'
@@ -76,9 +76,6 @@ export function ProjectCard({ project, ides, preferredIde, customCategories, onO
         <div className={`p-3 rounded-xl ${colors.bg}`}>
           <Icon size={24} className={colors.color} />
         </div>
-        <button className="text-stone-600 hover:text-stone-300 transition-colors p-1" onClick={(e) => e.stopPropagation()}>
-          <MoreVertical size={18} />
-        </button>
       </div>
 
       <h3 className="text-stone-100 font-medium text-lg truncate">{project.name}</h3>

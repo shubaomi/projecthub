@@ -7,7 +7,7 @@ import { getGitStatus } from '../services/git.js'
 import { executeAction } from '../services/actions.js'
 import { detectIdes } from '../services/ides.js'
 import { readConfig, writeConfig } from '../services/config.js'
-import { ApiResponse, ProjectDetail, OpenAction } from '../types.js'
+import { ApiResponse, ProjectDetail, OpenAction, AppConfig, CategoryDefinition } from '../types.js'
 
 const router = Router()
 
@@ -99,11 +99,13 @@ export function createApiRouter(): Router {
   router.put('/config', (req: Request, res: Response) => {
     try {
       const config = readConfig()
-      const updated = { ...config, ...req.body }
+      const updates = validateConfigUpdate(req.body)
+      const updated = { ...config, ...updates }
       writeConfig(updated)
       res.json({ success: true, data: updated } as ApiResponse<typeof updated>)
     } catch (error) {
-      res.status(500).json({
+      const isValidationError = error instanceof Error && error.name === 'ValidationError'
+      res.status(isValidationError ? 400 : 500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
       } as ApiResponse<null>)
@@ -192,4 +194,94 @@ function findReadme(projectPath: string): string | null {
     if (fs.existsSync(p)) return p
   }
   return null
+}
+
+function validationError(message: string): Error {
+  const error = new Error(message)
+  error.name = 'ValidationError'
+  return error
+}
+
+function validateStringArray(value: unknown, field: string): string[] {
+  if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) {
+    throw validationError(`${field} must be an array of strings`)
+  }
+  return value.map((item) => item.trim()).filter(Boolean)
+}
+
+function validateCategory(value: unknown): CategoryDefinition {
+  if (!value || typeof value !== 'object') {
+    throw validationError('customCategories must contain objects')
+  }
+
+  const category = value as Partial<CategoryDefinition>
+  if (typeof category.id !== 'string' || !category.id.trim() || category.id.length > 80) {
+    throw validationError('category id must be a non-empty string up to 80 characters')
+  }
+  if (typeof category.name !== 'string' || !category.name.trim() || category.name.length > 80) {
+    throw validationError('category name must be a non-empty string up to 80 characters')
+  }
+  if (typeof category.color !== 'string' || !/^#[0-9a-fA-F]{6}$/.test(category.color)) {
+    throw validationError('category color must be a hex color like #f97316')
+  }
+
+  return {
+    id: category.id.trim(),
+    name: category.name.trim(),
+    color: category.color,
+  }
+}
+
+function validateConfigUpdate(body: unknown): Partial<AppConfig> {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw validationError('Request body must be an object')
+  }
+
+  const input = body as Partial<Record<keyof AppConfig, unknown>>
+  const update: Partial<AppConfig> = {}
+
+  if ('scanDirectories' in input) {
+    update.scanDirectories = validateStringArray(input.scanDirectories, 'scanDirectories')
+  }
+
+  if ('scanDepth' in input) {
+    if (!Number.isInteger(input.scanDepth) || (input.scanDepth as number) < 1 || (input.scanDepth as number) > 8) {
+      throw validationError('scanDepth must be an integer between 1 and 8')
+    }
+    update.scanDepth = input.scanDepth as number
+  }
+
+  if ('excludePatterns' in input) {
+    update.excludePatterns = validateStringArray(input.excludePatterns, 'excludePatterns')
+  }
+
+  if ('lastScanTime' in input) {
+    if (input.lastScanTime !== null && typeof input.lastScanTime !== 'string') {
+      throw validationError('lastScanTime must be a string or null')
+    }
+    update.lastScanTime = input.lastScanTime as string | null
+  }
+
+  if ('customCategories' in input) {
+    if (!Array.isArray(input.customCategories)) {
+      throw validationError('customCategories must be an array')
+    }
+    update.customCategories = input.customCategories.map(validateCategory)
+  }
+
+  if ('preferredIde' in input) {
+    if (input.preferredIde !== null && typeof input.preferredIde !== 'string') {
+      throw validationError('preferredIde must be a string or null')
+    }
+    update.preferredIde = input.preferredIde as string | null
+  }
+
+  if ('language' in input) {
+    if (input.language !== 'en' && input.language !== 'zh') {
+      throw validationError('language must be en or zh')
+    }
+    update.language = input.language
+  }
+
+  return update
 }

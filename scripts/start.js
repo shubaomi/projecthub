@@ -12,8 +12,7 @@ const BACKEND_PORT = 13001
 
 async function checkBuild() {
   const distExists = existsSync(resolve(ROOT, 'dist'))
-  const distServerExists = existsSync(resolve(ROOT, 'dist-server'))
-  return distExists && distServerExists
+  return distExists
 }
 
 async function runBuild() {
