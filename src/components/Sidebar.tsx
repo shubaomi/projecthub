@@ -1,5 +1,5 @@
 import { useState, type DragEvent } from 'react'
-import { Folder, LayoutGrid, Settings, Tag, ChevronDown } from 'lucide-react'
+import { LayoutGrid, Settings, Tag, ChevronDown } from 'lucide-react'
 import type { TypeGroup, CategoryDefinition, Project } from '../types'
 import { useI18n } from '../i18n'
 
@@ -54,9 +54,7 @@ export function Sidebar({ typeGroups, customCategories, projects, activeCategory
     <div className="w-64 border-r border-stone-800 bg-stone-950/50 flex flex-col">
       <div className="p-6">
         <div className="flex items-center gap-3 text-stone-100 font-semibold text-lg tracking-tight">
-          <div className="bg-orange-500 p-1.5 rounded-lg text-white">
-            <Folder size={20} strokeWidth={2.5} />
-          </div>
+          <ProjectHubMark />
           Project Hub
         </div>
       </div>
@@ -125,6 +123,20 @@ export function Sidebar({ typeGroups, customCategories, projects, activeCategory
           <Settings size={18} /> {t('sidebar.settings')}
         </button>
       </div>
+    </div>
+  )
+}
+
+function ProjectHubMark() {
+  return (
+    <div className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-orange-300 via-orange-500 to-orange-700 shadow-lg shadow-orange-950/30 ring-1 ring-orange-200/20">
+      <svg viewBox="0 0 32 32" className="h-5 w-5" aria-hidden="true">
+        <path d="M10 11h12M10 21h12M10 11v10M22 11v10" fill="none" stroke="#fff7ed" strokeWidth="2.75" strokeLinecap="round" />
+        <circle cx="10" cy="11" r="3.5" fill="#fff7ed" />
+        <circle cx="22" cy="11" r="3.5" fill="#fff7ed" />
+        <circle cx="10" cy="21" r="3.5" fill="#fff7ed" />
+        <circle cx="22" cy="21" r="3.5" fill="#fff7ed" />
+      </svg>
     </div>
   )
 }
