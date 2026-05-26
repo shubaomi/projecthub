@@ -5,25 +5,54 @@ import { OpenAction } from '../types.js'
 import { getProjectById } from './scanner.js'
 
 const osPlatform = platform()
-const POWERSHELL_START = [
-  '-NoProfile',
-  '-NonInteractive',
-  '-ExecutionPolicy',
-  'Bypass',
-  '-Command',
-  '$file=$args[0]; $arguments=@(); if ($args.Length -gt 1) { $arguments=$args[1..($args.Length-1)] }; Start-Process -FilePath $file -ArgumentList $arguments',
-]
 
-function launchCommand(command: string, args: string[]): Promise<void> {
+function exec(command: string, args: string[], options?: { windowsVerbatimArguments?: boolean }): Promise<void> {
   return new Promise((resolve, reject) => {
-    const childCommand = osPlatform === 'win32' ? 'powershell.exe' : command
-    const childArgs = osPlatform === 'win32' ? [...POWERSHELL_START, command, ...args] : args
-
-    execFile(childCommand, childArgs, (error) => {
+    execFile(command, args, options || {}, (error) => {
       if (error) reject(error)
       else resolve()
     })
   })
+}
+
+function quoteCmdArg(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`
+}
+
+function resolveWindowsCommand(command: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile('where.exe', [command], { encoding: 'utf-8' }, (error, stdout) => {
+      if (error) {
+        reject(error)
+        return
+      }
+
+      const candidates = stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+      const preferred = candidates.find((candidate) => /\.(exe|cmd|bat)$/i.test(candidate)) || candidates[0]
+      if (!preferred) reject(new Error(`${command} not found`))
+      else resolve(preferred)
+    })
+  })
+}
+
+async function launchWindowsCommand(command: string, args: string[]): Promise<void> {
+  const launcher = await resolveWindowsCommand(command)
+
+  if (/\.(cmd|bat)$/i.test(launcher)) {
+    const commandLine = ['call', quoteCmdArg(launcher), ...args.map(quoteCmdArg)].join(' ')
+    await exec('cmd.exe', ['/d', '/c', commandLine], { windowsVerbatimArguments: true })
+    return
+  }
+
+  await exec(launcher, args)
+}
+
+function launchCommand(command: string, args: string[]): Promise<void> {
+  if (osPlatform === 'win32') {
+    return launchWindowsCommand(command, args)
+  }
+
+  return exec(command, args)
 }
 
 export function executeAction(projectId: string, action: OpenAction): Promise<string> {
@@ -43,7 +72,7 @@ export function executeAction(projectId: string, action: OpenAction): Promise<st
       .then(() => `Executed ${action} for ${project.name}`)
       .catch(() => {
         throw new Error(`${action} not found or could not be launched`)
-    })
+      })
   }
 
   return new Promise((resolve, reject) => {
