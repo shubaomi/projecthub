@@ -1,4 +1,3 @@
-import { motion, AnimatePresence } from 'motion/react'
 import type { ProjectDetail, IdeInfo, CategoryDefinition } from '../types'
 import { ProjectCard } from './ProjectCard'
 
@@ -9,25 +8,29 @@ interface ProjectGridProps {
   customCategories: CategoryDefinition[]
   onOpenAction: (projectId: string, action: string) => void
   onProjectClick: (project: ProjectDetail) => void
+  selectionMode: boolean
+  selectedIds: ReadonlySet<string>
+  onToggleSelection: (projectId: string) => void
 }
 
-export function ProjectGrid({ projects, ides, preferredIde, customCategories, onOpenAction, onProjectClick }: ProjectGridProps) {
+export function ProjectGrid({ projects, ides, preferredIde, customCategories, onOpenAction, onProjectClick, selectionMode, selectedIds, onToggleSelection }: ProjectGridProps) {
   return (
-    <motion.div layout className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-      <AnimatePresence>
-        {projects.map((project) => (
-          <div key={project.id}>
-            <ProjectCard
-              project={project}
-              ides={ides}
-              preferredIde={preferredIde}
-              customCategories={customCategories}
-              onOpen={(action) => onOpenAction(project.id, action)}
-              onClick={() => onProjectClick(project)}
-            />
-          </div>
-        ))}
-      </AnimatePresence>
-    </motion.div>
+    <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
+      {projects.map((project) => (
+        <div key={project.id} className="contents">
+          <ProjectCard
+            project={project}
+            ides={ides}
+            preferredIde={preferredIde}
+            customCategories={customCategories}
+            onOpen={(action) => onOpenAction(project.id, action)}
+            onClick={() => onProjectClick(project)}
+            selectionMode={selectionMode}
+            selected={selectedIds.has(project.id)}
+            onToggleSelection={() => onToggleSelection(project.id)}
+          />
+        </div>
+      ))}
+    </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
-import { executeOpenAction, updateProjectCategory, fetchIdes } from './api/client'
+import { executeOpenAction, fetchIdes } from './api/client'
 import { useProjects } from './hooks/useProjects'
 import { useConfig } from './hooks/useConfig'
 import { Sidebar } from './components/Sidebar'
@@ -9,14 +9,21 @@ import { SettingsPanel } from './components/SettingsPanel'
 import { MainContent } from './components/MainContent'
 import { I18nProvider } from './i18n'
 import type { ProjectDetail, TypeGroup, CategoryDefinition, IdeInfo } from './types'
+import { isProjectUncategorized, UNCATEGORIZED_FILTER } from './utils/projectCategories'
 
 export default function App() {
-  const { projects, loading, scanning, error, scan, refresh } = useProjects()
-  const { config, save: saveConfig } = useConfig()
+  const { projects, loading, scanning, error, lastScanResult, scan, updateCategories } = useProjects()
+  const { config, save: saveConfig, refresh: refreshConfig } = useConfig()
+
+  const handleScan = useCallback(async () => {
+    await scan()
+    await refreshConfig()
+  }, [scan, refreshConfig])
   const [searchQuery, setSearchQuery] = useState('')
   const [activeCategory, setActiveCategory] = useState('All')
   const [selectedProject, setSelectedProject] = useState<ProjectDetail | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [ides, setIdes] = useState<IdeInfo[]>([])
 
@@ -35,8 +42,11 @@ export default function App() {
       )
     }
     if (activeCategory !== 'All') {
-      const isCustomCat = config?.customCategories.some(c => c.id === activeCategory)
-      if (isCustomCat) {
+      const validCategoryIds = new Set(config?.customCategories.map((category) => category.id) || [])
+      const isCustomCat = validCategoryIds.has(activeCategory)
+      if (activeCategory === UNCATEGORIZED_FILTER) {
+        result = result.filter((project) => isProjectUncategorized(project, validCategoryIds))
+      } else if (isCustomCat) {
         result = result.filter((p) => p.customCategory === activeCategory)
       } else {
         result = result.filter(
@@ -44,7 +54,7 @@ export default function App() {
         )
       }
     }
-    return result.sort((a, b) => {
+    return [...result].sort((a, b) => {
       const timeCmp = b.lastModified.localeCompare(a.lastModified)
       if (timeCmp !== 0) return timeCmp
       return a.name.localeCompare(b.name)
@@ -68,24 +78,29 @@ export default function App() {
     }
   }, [])
 
-  const onRefresh = useCallback(() => {
-    scan()
-  }, [scan])
-
   const handleCategoryChange = useCallback(async (projectId: string, categoryId: string | null) => {
     setActionError(null)
     try {
-      await updateProjectCategory(projectId, categoryId)
+      await updateCategories([projectId], categoryId)
       setSelectedProject(prev => prev?.id === projectId ? { ...prev, customCategory: categoryId } : prev)
-      await refresh()
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Failed to update category')
     }
-  }, [refresh])
+  }, [updateCategories])
 
   const handleReorderCategories = useCallback(async (categories: CategoryDefinition[]) => {
     await saveConfig({ customCategories: categories })
   }, [saveConfig])
+
+  const handleSidebarCategoryChange = useCallback((category: string) => {
+    setActiveCategory(category)
+    setSidebarOpen(false)
+  }, [])
+
+  const handleSettingsOpen = useCallback(() => {
+    setSidebarOpen(false)
+    setSettingsOpen(true)
+  }, [])
 
   const noScanDirs = config && config.scanDirectories.length === 0
   const noResults = !loading && !scanning && projects.length > 0 && filteredProjects.length === 0
@@ -94,24 +109,50 @@ export default function App() {
   return (
     <I18nProvider initialLang={(config?.language as 'en' | 'zh') || 'en'}>
       <div className="flex h-screen bg-stone-950 text-stone-300 font-sans overflow-hidden">
-        <Sidebar
-          typeGroups={typeGroups}
-          customCategories={config?.customCategories || []}
-          projects={projects}
-          activeCategory={activeCategory}
-          onCategoryChange={setActiveCategory}
-          onSettingsClick={() => setSettingsOpen(true)}
-          onReorderCategories={handleReorderCategories}
-        />
+        <div className="hidden lg:flex shrink-0">
+          <Sidebar
+            typeGroups={typeGroups}
+            customCategories={config?.customCategories || []}
+            projects={projects}
+            activeCategory={activeCategory}
+            onCategoryChange={handleSidebarCategoryChange}
+            onSettingsClick={handleSettingsOpen}
+            onReorderCategories={handleReorderCategories}
+          />
+        </div>
+
+        {sidebarOpen && (
+          <>
+            <button
+              type="button"
+              aria-label="Close navigation"
+              className="fixed inset-0 z-40 bg-black/70 lg:hidden"
+              onClick={() => setSidebarOpen(false)}
+            />
+            <div className="fixed inset-y-0 left-0 z-50 flex lg:hidden">
+              <Sidebar
+                typeGroups={typeGroups}
+                customCategories={config?.customCategories || []}
+                projects={projects}
+                activeCategory={activeCategory}
+                onCategoryChange={handleSidebarCategoryChange}
+                onSettingsClick={handleSettingsOpen}
+                onReorderCategories={handleReorderCategories}
+              />
+            </div>
+          </>
+        )}
 
         <div className="flex-1 flex flex-col min-w-0">
           <SearchHeader
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
-            onScan={scan}
+            onScan={handleScan}
             scanning={scanning}
             lastScanTime={config?.lastScanTime || null}
             projectCount={projects.length}
+            scanResult={lastScanResult}
+            onMenuClick={() => setSidebarOpen(true)}
           />
 
           <MainContent
@@ -128,7 +169,8 @@ export default function App() {
             customCategories={config?.customCategories || []}
             onOpenAction={handleOpenAction}
             onProjectClick={setSelectedProject}
-            onSettingsOpen={() => setSettingsOpen(true)}
+            onBulkCategoryChange={updateCategories}
+            onSettingsOpen={handleSettingsOpen}
             actionError={actionError}
             onDismissError={() => setActionError(null)}
           />
@@ -142,7 +184,6 @@ export default function App() {
           onClose={() => setSelectedProject(null)}
           onOpenAction={handleOpenAction}
           onCategoryChange={handleCategoryChange}
-          onRefresh={onRefresh}
         />
 
         <SettingsPanel

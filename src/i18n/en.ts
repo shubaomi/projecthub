@@ -10,15 +10,35 @@ export const en = {
 
   // Sidebar
   'sidebar.all': 'All',
+  'sidebar.uncategorized': 'Uncategorized',
   'sidebar.customCategories': 'Custom Categories',
   'sidebar.techStack': 'Tech Stack',
   'sidebar.settings': 'Settings',
+  'sidebar.openNavigation': 'Open navigation',
 
   // SearchHeader
   'search.placeholder': 'Search projects, tags, or frameworks...',
   'search.scan': 'Scan Now',
   'search.scanning': 'Scanning...',
+  'search.clear': 'Clear search',
   'search.scannedAgo': 'Scanned {time} · {count} projects',
+  'search.scanSummary': 'Scan complete · {added} added · {removed} removed · {total} total',
+
+  // Bulk categorization
+  'bulk.start': 'Batch categorize',
+  'bulk.selectedCount': '{count} selected',
+  'bulk.selectAll': 'Select current results',
+  'bulk.clear': 'Clear selection',
+  'bulk.targetCategory': 'Target category',
+  'bulk.apply': 'Apply category',
+  'bulk.applying': 'Applying...',
+  'bulk.exit': 'Exit batch categorization',
+  'bulk.updated': 'Updated {count} projects',
+  'bulk.failed': 'Batch categorization failed',
+  'bulk.selectProject': 'Select project',
+  'bulk.deselectProject': 'Deselect project',
+  'bulk.selected': 'Selected',
+  'bulk.clickToSelect': 'Click to select',
 
   // ProjectCard
   'card.updated': 'Updated {time}',
@@ -42,6 +62,7 @@ export const en = {
   'detail.ahead': '{count} commits ahead of remote',
   'detail.behind': '{count} commits behind remote',
   'detail.noRemote': 'No remote configured',
+  'detail.close': 'Close project details',
 
   // GitStatusBadge
   'git.ahead': '{count} commits ahead',
@@ -74,9 +95,20 @@ export const en = {
   'settings.noCategories': 'No custom categories yet',
   'settings.language': 'Language',
   'settings.preferredIde': 'Preferred IDE',
+  'settings.close': 'Close settings',
+  'settings.removeDirectory': 'Remove directory {name}',
+  'settings.confirmRename': 'Confirm rename',
+  'settings.cancelRename': 'Cancel rename',
+  'settings.renameCategory': 'Rename category {name}',
+  'settings.removeCategory': 'Remove category {name}',
+  'settings.error.directoryExists': 'This directory is already in the list',
+  'settings.error.categoryExists': 'A category with this name already exists',
+  'settings.error.categoryNameEmpty': 'Category name cannot be empty',
+  'settings.error.saveFailed': 'Failed to save settings',
 
   // Actions
   'action.openIde': 'Open in IDE',
+  'action.openIdeNamed': 'Open in {name}',
   'action.openTerminal': 'Terminal',
   'action.openFolder': 'Folder',
 

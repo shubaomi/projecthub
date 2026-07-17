@@ -10,15 +10,35 @@ export const zh = {
 
   // Sidebar
   'sidebar.all': '全部',
+  'sidebar.uncategorized': '未分类',
   'sidebar.customCategories': '自定义分类',
   'sidebar.techStack': '技术栈',
   'sidebar.settings': '设置',
+  'sidebar.openNavigation': '打开导航',
 
   // SearchHeader
   'search.placeholder': '搜索项目、标签或框架...',
   'search.scan': '立即扫描',
   'search.scanning': '扫描中...',
+  'search.clear': '清除搜索',
   'search.scannedAgo': '已扫描 {time} · {count} 个项目',
+  'search.scanSummary': '扫描完成 · 新增 {added} · 移除 {removed} · 共 {total}',
+
+  // Bulk categorization
+  'bulk.start': '批量分类',
+  'bulk.selectedCount': '已选 {count} 个',
+  'bulk.selectAll': '全选当前结果',
+  'bulk.clear': '清空选择',
+  'bulk.targetCategory': '目标分类',
+  'bulk.apply': '应用分类',
+  'bulk.applying': '应用中...',
+  'bulk.exit': '退出批量分类',
+  'bulk.updated': '已更新 {count} 个项目',
+  'bulk.failed': '批量分类失败',
+  'bulk.selectProject': '选择项目',
+  'bulk.deselectProject': '取消选择项目',
+  'bulk.selected': '已选择',
+  'bulk.clickToSelect': '点击选择',
 
   // ProjectCard
   'card.updated': '更新于 {time}',
@@ -42,6 +62,7 @@ export const zh = {
   'detail.ahead': '领先远程 {count} 个提交',
   'detail.behind': '落后远程 {count} 个提交',
   'detail.noRemote': '未配置远程仓库',
+  'detail.close': '关闭项目详情',
 
   // GitStatusBadge
   'git.ahead': '领先 {count} 个提交',
@@ -74,9 +95,20 @@ export const zh = {
   'settings.noCategories': '暂无自定义分类',
   'settings.language': '语言',
   'settings.preferredIde': '首选 IDE',
+  'settings.close': '关闭设置',
+  'settings.removeDirectory': '移除目录 {name}',
+  'settings.confirmRename': '确认重命名',
+  'settings.cancelRename': '取消重命名',
+  'settings.renameCategory': '重命名分类 {name}',
+  'settings.removeCategory': '删除分类 {name}',
+  'settings.error.directoryExists': '该目录已在列表中',
+  'settings.error.categoryExists': '已存在同名分类',
+  'settings.error.categoryNameEmpty': '分类名称不能为空',
+  'settings.error.saveFailed': '保存设置失败',
 
   // Actions
   'action.openIde': '用 IDE 打开',
+  'action.openIdeNamed': '用 {name} 打开',
   'action.openTerminal': '终端',
   'action.openFolder': '文件夹',
 

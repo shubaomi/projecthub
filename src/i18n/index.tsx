@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
 import { en } from './en'
 import { zh } from './zh'
 
@@ -18,6 +18,10 @@ const I18nContext = createContext<I18nContextType | null>(null)
 
 export function I18nProvider({ children, initialLang = 'en' }: { children: ReactNode; initialLang?: Language }) {
   const [lang, setLangState] = useState<Language>(initialLang)
+
+  useEffect(() => {
+    setLangState(initialLang)
+  }, [initialLang])
 
   const setLang = useCallback((newLang: Language) => {
     setLangState(newLang)

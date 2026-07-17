@@ -4,6 +4,7 @@ import path from 'node:path'
 import os from 'node:os'
 import crypto from 'node:crypto'
 import { readConfig, writeConfig, expandHomeDir } from './config.js'
+import { applyCategoryUpdates } from './categories.js'
 import { Project, ProjectList, ScanResult } from '../types.js'
 
 const PROJECTS_PATH = path.join(
@@ -208,10 +209,15 @@ export function getProjectById(id: string): Project | undefined {
 }
 
 export function updateProjectCategory(projectId: string, customCategory: string | null): Project | null {
+  return updateProjectCategories([projectId], customCategory)?.[0] ?? null
+}
+
+export function updateProjectCategories(projectIds: string[], customCategory: string | null): Project[] | null {
   const projects = loadProjectCache()
-  const index = projects.findIndex((p) => p.id === projectId)
-  if (index === -1) return null
-  projects[index] = { ...projects[index], customCategory }
-  saveProjectCache(projects)
-  return projects[index]
+  const updated = applyCategoryUpdates(projects, projectIds, customCategory)
+  if (!updated) return null
+
+  saveProjectCache(updated)
+  const selectedIds = new Set(projectIds)
+  return updated.filter((project) => selectedIds.has(project.id))
 }

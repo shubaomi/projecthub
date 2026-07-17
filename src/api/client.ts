@@ -44,6 +44,13 @@ export function updateProjectCategory(projectId: string, customCategory: string 
   })
 }
 
+export function updateProjectCategories(projectIds: string[], customCategory: string | null): Promise<Project[]> {
+  return request<Project[]>('/projects/categories', {
+    method: 'PATCH',
+    body: JSON.stringify({ projectIds, customCategory }),
+  })
+}
+
 export function executeOpenAction(projectId: string, action: string): Promise<{ message: string }> {
   return request<{ message: string }>('/open', {
     method: 'POST',

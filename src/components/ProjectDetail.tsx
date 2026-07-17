@@ -14,10 +14,9 @@ interface ProjectDetailProps {
   onClose: () => void
   onOpenAction: (projectId: string, action: string) => void
   onCategoryChange: (projectId: string, categoryId: string | null) => void
-  onRefresh: () => void
 }
 
-export function ProjectDetailPanel({ project, customCategories, ides, preferredIde, onClose, onOpenAction, onCategoryChange, onRefresh }: ProjectDetailProps) {
+export function ProjectDetailPanel({ project, customCategories, ides, preferredIde, onClose, onOpenAction, onCategoryChange }: ProjectDetailProps) {
   const { t } = useI18n()
   const [showIdeMenu, setShowIdeMenu] = useState(false)
   const [showCategoryMenu, setShowCategoryMenu] = useState(false)
@@ -37,6 +36,15 @@ export function ProjectDetailPanel({ project, customCategories, ides, preferredI
       .finally(() => setReadmeLoading(false))
   }, [project?.id])
 
+  useEffect(() => {
+    if (!project) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [project, onClose])
+
   const readmeContent = fullProject?.readme || project?.readme || null
   const currentCategory = customCategories.find(c => c.id === project?.customCategory)
   return (
@@ -51,11 +59,14 @@ export function ProjectDetailPanel({ project, customCategories, ides, preferredI
             initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
             className="fixed right-0 top-0 h-full w-full max-w-[100vw] sm:w-[500px] bg-stone-950 border-l border-stone-800 z-50 overflow-y-auto"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="project-detail-title"
           >
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-stone-100">{project.name}</h2>
-                <button onClick={onClose} className="p-2 hover:bg-stone-800 rounded-lg transition-colors text-stone-400 hover:text-stone-200">
+                <h2 id="project-detail-title" className="text-xl font-semibold text-stone-100">{project.name}</h2>
+                <button onClick={onClose} aria-label={t('detail.close')} className="p-2 hover:bg-stone-800 rounded-lg transition-colors text-stone-400 hover:text-stone-200">
                   <X size={20} />
                 </button>
               </div>

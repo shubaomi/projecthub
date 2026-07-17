@@ -25,6 +25,7 @@ export function getGitStatus(projectPath: string): GitStatus {
       cwd: projectPath,
       timeout: 5000,
       encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'pipe'],
     }).trim()
 
     if (!branchOutput || branchOutput === 'HEAD') {
@@ -49,6 +50,7 @@ export function getGitStatus(projectPath: string): GitStatus {
         cwd: projectPath,
         timeout: 5000,
         encoding: 'utf-8',
+        stdio: ['ignore', 'pipe', 'pipe'],
       }).trim()
       if (branchListOutput) {
         status.allBranches = branchListOutput.split('\n').filter(Boolean)
@@ -61,6 +63,7 @@ export function getGitStatus(projectPath: string): GitStatus {
       cwd: projectPath,
       timeout: 5000,
       encoding: 'utf-8',
+      stdio: ['ignore', 'pipe', 'pipe'],
     })
 
     const lines = porcelain.split('\n')

@@ -5,6 +5,13 @@ param(
     [int]$BackendPort = 13001
 )
 
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+[Console]::InputEncoding = $utf8NoBom
+[Console]::OutputEncoding = $utf8NoBom
+$OutputEncoding = $utf8NoBom
+$env:NO_COLOR = "1"
+$env:FORCE_COLOR = "0"
+
 # $PSScriptRoot is scripts folder, need to go up one level to project root
 $BASE_DIR = Split-Path -Parent $PSScriptRoot
 if (-not $BASE_DIR) { $BASE_DIR = Split-Path -Parent $MyInvocation.MyCommand.Path }
@@ -65,6 +72,11 @@ Write-Host "[Backend] Starting on port $BackendPort..." -ForegroundColor Yellow
 $backendJob = Start-Job -Name "Backend" -ArgumentList $BackendPort, $BASE_DIR -ScriptBlock {
     param($port, $dir)
     Set-Location $dir
+    $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+    [Console]::OutputEncoding = $utf8NoBom
+    $OutputEncoding = $utf8NoBom
+    $env:NO_COLOR = "1"
+    $env:FORCE_COLOR = "0"
     $env:PORT = $port
     npm run dev:server
 }
@@ -81,7 +93,12 @@ Write-Host "[Frontend] Starting on port $FrontendPort..." -ForegroundColor Yello
 $frontendJob = Start-Job -Name "Frontend" -ArgumentList $FrontendPort, $BASE_DIR -ScriptBlock {
     param($port, $dir)
     Set-Location $dir
-    npm run dev -- --port=$port
+    $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+    [Console]::OutputEncoding = $utf8NoBom
+    $OutputEncoding = $utf8NoBom
+    $env:NO_COLOR = "1"
+    $env:FORCE_COLOR = "0"
+    npm run dev:frontend -- --port=$port
 }
 
 Write-Host ""
@@ -94,9 +111,20 @@ Write-Host ""
 
 function Strip-Ansi($text) {
     if ($text -is [array]) {
-        $text | ForEach-Object { $_ -replace "\x1b\[[0-9;]*[a-zA-Z]", "" }
+        $text | ForEach-Object { $_ -replace '\x1B\[[0-?]*[ -/]*[@-~]', '' }
     } else {
-        $text -replace "\x1b\[[0-9;]*[a-zA-Z]", ""
+        $text -replace '\x1B\[[0-?]*[ -/]*[@-~]', ''
+    }
+}
+
+function Stop-ListeningProcesses([int[]]$Ports) {
+    for ($attempt = 0; $attempt -lt 5; $attempt++) {
+        $processIds = Get-NetTCPConnection -LocalPort $Ports -ErrorAction SilentlyContinue |
+            Where-Object { $_.State -eq "Listen" } |
+            Select-Object -ExpandProperty OwningProcess -Unique
+        if (-not $processIds) { return }
+        $processIds | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
+        Start-Sleep -Milliseconds 250
     }
 }
 
@@ -126,11 +154,11 @@ try {
 } finally {
     Write-Host ""
     Write-Host "Shutting down..." -ForegroundColor Yellow
+    # Stop the listening child processes first; Stop-Job can be interrupted by Ctrl+C
+    # before npm/Vite descendants have exited.
+    Stop-ListeningProcesses @($BackendPort, $FrontendPort)
     Stop-Job -Job $backendJob -ErrorAction SilentlyContinue
     Stop-Job -Job $frontendJob -ErrorAction SilentlyContinue
     Remove-Job -Job $backendJob, $frontendJob -Force -ErrorAction SilentlyContinue
-    Get-NetTCPConnection -LocalPort $BackendPort, $FrontendPort -ErrorAction SilentlyContinue | Where-Object { $_.State -eq "Listen" } | ForEach-Object {
-        Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue
-    }
     Write-Host "ProjectHub stopped" -ForegroundColor Green
 }

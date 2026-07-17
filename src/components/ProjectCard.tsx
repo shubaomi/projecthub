@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { motion } from 'motion/react'
 import {
-  Code2, Folder, Terminal, Globe, Server, ChevronDown, Tag,
+  Code2, Folder, Terminal, Globe, Server, ChevronDown, Tag, Check,
 } from 'lucide-react'
 import type { ProjectDetail, IdeInfo, CategoryDefinition } from '../types'
 import { GitStatusBadge } from './GitStatusBadge'
@@ -15,6 +15,9 @@ export interface ProjectCardProps {
   customCategories: CategoryDefinition[]
   onOpen: (action: string) => void
   onClick: () => void
+  selectionMode: boolean
+  selected: boolean
+  onToggleSelection: () => void
 }
 
 type IconComponent = React.ComponentType<{ size?: number; className?: string }>
@@ -53,7 +56,7 @@ function formatRelativeTime(isoString: string, t: (key: string, params?: Record<
   return t('time.monthsAgo', { count: String(Math.floor(days / 30)) })
 }
 
-export function ProjectCard({ project, ides, preferredIde, customCategories, onOpen, onClick }: ProjectCardProps) {
+export function ProjectCard({ project, ides, preferredIde, customCategories, onOpen, onClick, selectionMode, selected, onToggleSelection }: ProjectCardProps) {
   const { t } = useI18n()
   const Icon = ICON_MAP[project.type] || Folder
   const colors = COLOR_MAP[project.type] || COLOR_MAP.Unknown
@@ -69,28 +72,53 @@ export function ProjectCard({ project, ides, preferredIde, customCategories, onO
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.2 }}
-      className="bg-stone-900/50 border border-stone-800 rounded-2xl p-5 hover:border-stone-700 transition-colors group flex flex-col cursor-pointer"
-      onClick={onClick}
+      role={selectionMode ? 'checkbox' : undefined}
+      aria-checked={selectionMode ? selected : undefined}
+      aria-label={selectionMode ? `${project.name}: ${selected ? t('bulk.selected') : t('bulk.clickToSelect')}` : undefined}
+      tabIndex={selectionMode ? 0 : undefined}
+      className={`bg-stone-900/50 border rounded-2xl p-4 transition-colors group flex flex-col cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-500/50 ${selected ? 'border-orange-500/60 bg-orange-500/5' : 'border-stone-800 hover:border-stone-700'}`}
+      onClick={selectionMode ? onToggleSelection : onClick}
+      onKeyDown={(event) => {
+        if (!selectionMode || event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return
+        event.preventDefault()
+        onToggleSelection()
+      }}
     >
-      <div className="flex justify-between items-start mb-4">
-        <div className={`p-3 rounded-xl ${colors.bg}`}>
-          <Icon size={24} className={colors.color} />
+      <div className="flex items-start gap-3 mb-3">
+        <div className={`p-2.5 rounded-xl ${colors.bg} shrink-0`}>
+          <Icon size={20} className={colors.color} />
         </div>
-      </div>
-
-      <h3 className="text-stone-100 font-medium text-lg truncate">{project.name}</h3>
-
-      {category && (
-        <div className="flex items-center gap-1.5 mb-1">
+        <div className="min-w-0 flex-1">
+          {selectionMode ? (
+            <h3 className="text-stone-100 font-medium text-base truncate">{project.name}</h3>
+          ) : (
+            <button
+              type="button"
+              className="block max-w-full text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/50 rounded"
+              onClick={(event) => { event.stopPropagation(); onClick() }}
+            >
+              <h3 className="text-stone-100 font-medium text-base truncate">{project.name}</h3>
+            </button>
+          )}
+          {category && (
+            <span
+              className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border"
+              style={{ color: category.color, borderColor: category.color + '40', backgroundColor: category.color + '18' }}
+            >
+              <Tag size={11} />
+              {category.name}
+            </span>
+          )}
+        </div>
+        {selectionMode && (
           <span
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border"
-            style={{ color: category.color, borderColor: category.color + '40', backgroundColor: category.color + '18' }}
+            aria-hidden="true"
+            className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg border transition-colors ${selected ? 'border-orange-500 bg-orange-500 text-white' : 'border-stone-600 text-transparent hover:border-stone-400'}`}
           >
-            <Tag size={11} />
-            {category.name}
+            <Check size={15} />
           </span>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="font-mono text-xs text-stone-500 mb-1 truncate flex items-center gap-1.5" title={project.path}>
         <Terminal size={12} />
@@ -98,29 +126,36 @@ export function ProjectCard({ project, ides, preferredIde, customCategories, onO
       </div>
 
       <GitStatusBadge git={project.git} />
-      <ReadmeExcerpt readme={project.readme} />
+      <ReadmeExcerpt readme={project.readme} maxLen={140} />
 
-      <div className="flex flex-wrap gap-2 mb-4">
-        {project.tags.map((tag) => (
+      <div className="flex flex-wrap gap-2 mb-3">
+        {project.tags.slice(0, 3).map((tag) => (
           <span key={tag} className="px-2 py-1 bg-stone-800 text-stone-300 rounded-md text-xs font-medium border border-stone-700/50">
             {tag}
           </span>
         ))}
+        {project.tags.length > 3 && <span className="px-2 py-1 text-xs text-stone-500">+{project.tags.length - 3}</span>}
       </div>
 
-      <div className="mt-auto pt-4 border-t border-stone-800/50 flex items-center justify-between">
+      <div className="mt-auto pt-3 border-t border-stone-800/50 flex items-center justify-between">
         {formattedTime && <span className="text-xs text-stone-500">{t('card.updated', { time: formattedTime })}</span>}
-        <div className="flex gap-2 ml-auto">
+        {selectionMode ? (
+          <span className={`ml-auto text-xs ${selected ? 'text-orange-400' : 'text-stone-600'}`}>
+            {selected ? t('bulk.selected') : t('bulk.clickToSelect')}
+          </span>
+        ) : <div className="flex gap-2 ml-auto">
           <button
             className="bg-stone-800 hover:bg-stone-700 text-stone-200 p-2 rounded-lg transition-colors"
-            title="Open Terminal"
+            title={t('action.openTerminal')}
+            aria-label={t('action.openTerminal')}
             onClick={(e) => { e.stopPropagation(); onOpen('terminal') }}
           >
             <Terminal size={16} />
           </button>
           <button
             className="bg-stone-800 hover:bg-stone-700 text-stone-200 p-2 rounded-lg transition-colors"
-            title="Open Folder"
+            title={t('action.openFolder')}
+            aria-label={t('action.openFolder')}
             onClick={(e) => { e.stopPropagation(); onOpen('folder') }}
           >
             <Folder size={16} />
@@ -131,7 +166,8 @@ export function ProjectCard({ project, ides, preferredIde, customCategories, onO
             }}>
               <button
                 className="bg-stone-800 hover:bg-stone-700 text-stone-200 p-2 rounded-lg transition-colors flex items-center gap-1"
-                title={`Open in ${selectedIde?.name || 'IDE'}`}
+                title={t('action.openIdeNamed', { name: selectedIde?.name || 'IDE' })}
+                aria-label={t('action.openIdeNamed', { name: selectedIde?.name || 'IDE' })}
                 onClick={(e) => { e.stopPropagation(); setShowIdeMenu(!showIdeMenu) }}
               >
                 <Code2 size={16} />
@@ -154,13 +190,14 @@ export function ProjectCard({ project, ides, preferredIde, customCategories, onO
           ) : (
             <button
               className="bg-stone-800 hover:bg-stone-700 text-stone-200 p-2 rounded-lg transition-colors"
-              title="Open VS Code"
+              title={t('action.openIdeNamed', { name: 'VS Code' })}
+              aria-label={t('action.openIdeNamed', { name: 'VS Code' })}
               onClick={(e) => { e.stopPropagation(); onOpen('code') }}
             >
               <Code2 size={16} />
             </button>
           )}
-        </div>
+        </div>}
       </div>
     </motion.div>
   )

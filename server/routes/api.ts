@@ -2,11 +2,11 @@
 import { Router, Request, Response } from 'express'
 import fs from 'node:fs'
 import path from 'node:path'
-import { scan, loadProjects, getProjectById, updateProjectCategory } from '../services/scanner.js'
+import { scan, loadProjects, getProjectById, updateProjectCategory, updateProjectCategories } from '../services/scanner.js'
 import { getGitStatus } from '../services/git.js'
 import { executeAction } from '../services/actions.js'
 import { detectIdes } from '../services/ides.js'
-import { readConfig, writeConfig } from '../services/config.js'
+import { expandHomeDir, readConfig, writeConfig } from '../services/config.js'
 import { ApiResponse, ProjectDetail, OpenAction, AppConfig, CategoryDefinition } from '../types.js'
 
 const router = Router()
@@ -106,6 +106,40 @@ export function createApiRouter(): Router {
     } catch (error) {
       const isValidationError = error instanceof Error && error.name === 'ValidationError'
       res.status(isValidationError ? 400 : 500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      } as ApiResponse<null>)
+    }
+  })
+
+  router.patch('/projects/categories', (req: Request, res: Response) => {
+    try {
+      const { projectIds, customCategory } = req.body || {}
+      if (!Array.isArray(projectIds) || projectIds.length === 0 || !projectIds.every((id) => typeof id === 'string' && id.trim())) {
+        res.status(400).json({ success: false, error: 'projectIds must be a non-empty array of strings' } as ApiResponse<null>)
+        return
+      }
+      if (customCategory !== null && typeof customCategory !== 'string') {
+        res.status(400).json({ success: false, error: 'customCategory must be a string or null' } as ApiResponse<null>)
+        return
+      }
+
+      const categoryId = customCategory?.trim() || null
+      if (categoryId && !readConfig().customCategories.some((category) => category.id === categoryId)) {
+        res.status(400).json({ success: false, error: 'Unknown custom category' } as ApiResponse<null>)
+        return
+      }
+
+      const uniqueProjectIds = [...new Set(projectIds.map((id: string) => id.trim()))]
+      const updated = updateProjectCategories(uniqueProjectIds, categoryId)
+      if (!updated) {
+        res.status(404).json({ success: false, error: 'One or more projects were not found' } as ApiResponse<null>)
+        return
+      }
+
+      res.json({ success: true, data: updated } as ApiResponse<typeof updated>)
+    } catch (error) {
+      res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
       } as ApiResponse<null>)
@@ -241,7 +275,18 @@ function validateConfigUpdate(body: unknown): Partial<AppConfig> {
   const update: Partial<AppConfig> = {}
 
   if ('scanDirectories' in input) {
-    update.scanDirectories = validateStringArray(input.scanDirectories, 'scanDirectories')
+    const scanDirectories = validateStringArray(input.scanDirectories, 'scanDirectories')
+    for (const directory of scanDirectories) {
+      try {
+        if (!fs.statSync(expandHomeDir(directory)).isDirectory()) {
+          throw validationError(`Scan directory is not a directory: ${directory}`)
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name === 'ValidationError') throw error
+        throw validationError(`Scan directory does not exist or is not accessible: ${directory}`)
+      }
+    }
+    update.scanDirectories = scanDirectories
   }
 
   if ('scanDepth' in input) {

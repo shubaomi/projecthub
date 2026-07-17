@@ -1,7 +1,8 @@
 import { useState, type DragEvent } from 'react'
-import { LayoutGrid, Settings, Tag, ChevronDown } from 'lucide-react'
+import { LayoutGrid, Settings, Tag, ChevronDown, CircleDashed } from 'lucide-react'
 import type { TypeGroup, CategoryDefinition, Project } from '../types'
 import { useI18n } from '../i18n'
+import { isProjectUncategorized, UNCATEGORIZED_FILTER } from '../utils/projectCategories'
 
 interface SidebarProps {
   typeGroups: TypeGroup[]
@@ -18,13 +19,15 @@ export function Sidebar({ typeGroups, customCategories, projects, activeCategory
   const total = typeGroups.reduce((sum, g) => sum + g.count, 0)
 
   const categoryCounts = new Map<string, number>()
+  const validCategoryIds = new Set(customCategories.map((category) => category.id))
   for (const cat of customCategories) {
     categoryCounts.set(cat.id, projects.filter(p => p.customCategory === cat.id).length)
   }
+  const uncategorizedCount = projects.filter((project) => isProjectUncategorized(project, validCategoryIds)).length
 
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
-  const [techStackOpen, setTechStackOpen] = useState(customCategories.length === 0)
+  const [techStackOpen, setTechStackOpen] = useState(false)
 
   function handleDragStart(index: number) {
     setDragIndex(index)
@@ -61,38 +64,41 @@ export function Sidebar({ typeGroups, customCategories, projects, activeCategory
 
       {/* Unified scrollable area: custom categories + tech stack */}
       <div className="flex-1 overflow-y-auto">
-        {customCategories.length > 0 && (
-          <>
-            <div className="px-4 py-2 text-xs font-semibold text-stone-500 uppercase tracking-wider">{t('sidebar.customCategories')}</div>
-            <div className="px-3 space-y-1">
+        <div className="px-4 py-2 text-xs font-semibold text-stone-500 uppercase tracking-wider">{t('sidebar.customCategories')}</div>
+        <div className="px-3 space-y-1">
+          <CategoryButton
+            label={t('sidebar.all')}
+            count={total}
+            isActive={activeCategory === 'All'}
+            onClick={() => onCategoryChange('All')}
+          />
+          <CategoryButton
+            label={t('sidebar.uncategorized')}
+            count={uncategorizedCount}
+            isActive={activeCategory === UNCATEGORIZED_FILTER}
+            icon="uncategorized"
+            onClick={() => onCategoryChange(UNCATEGORIZED_FILTER)}
+          />
+          {customCategories.map((cat, index) => (
+            <div
+              key={cat.id}
+              draggable
+              onDragStart={() => handleDragStart(index)}
+              onDragOver={(e) => handleDragOver(e, index)}
+              onDrop={() => handleDrop(index)}
+              onDragEnd={handleDragEnd}
+              className={`${dragOverIndex === index && dragIndex !== index ? 'border-t-2 border-orange-500/50 -mt-px' : ''} ${dragIndex === index ? 'opacity-50' : ''}`}
+            >
               <CategoryButton
-                label={t('sidebar.all')}
-                count={total}
-                isActive={activeCategory === 'All'}
-                onClick={() => onCategoryChange('All')}
+                label={cat.name}
+                count={categoryCounts.get(cat.id) || 0}
+                isActive={activeCategory === cat.id}
+                color={cat.color}
+                onClick={() => onCategoryChange(cat.id)}
               />
-              {customCategories.map((cat, index) => (
-                <div
-                  key={cat.id}
-                  draggable
-                  onDragStart={() => handleDragStart(index)}
-                  onDragOver={(e) => handleDragOver(e, index)}
-                  onDrop={() => handleDrop(index)}
-                  onDragEnd={handleDragEnd}
-                  className={`${dragOverIndex === index && dragIndex !== index ? 'border-t-2 border-orange-500/50 -mt-px' : ''} ${dragIndex === index ? 'opacity-50' : ''}`}
-                >
-                  <CategoryButton
-                    label={cat.name}
-                    count={categoryCounts.get(cat.id) || 0}
-                    isActive={activeCategory === cat.id}
-                    color={cat.color}
-                    onClick={() => onCategoryChange(cat.id)}
-                  />
-                </div>
-              ))}
             </div>
-          </>
-        )}
+          ))}
+        </div>
 
         <button
           onClick={() => setTechStackOpen(!techStackOpen)}
@@ -103,9 +109,6 @@ export function Sidebar({ typeGroups, customCategories, projects, activeCategory
         </button>
         {techStackOpen && (
           <div className="px-3 space-y-1">
-            {customCategories.length === 0 && (
-              <CategoryButton label="All" count={total} isActive={activeCategory === 'All'} onClick={() => onCategoryChange('All')} />
-            )}
             {typeGroups.filter(g => g.count > 0).map((group) => (
               <div key={group.type}>
                 <CategoryButton label={group.type} count={group.count} isActive={activeCategory === group.type} onClick={() => onCategoryChange(group.type)} />
@@ -146,10 +149,11 @@ interface CategoryButtonProps {
   count: number
   isActive: boolean
   color?: string
+  icon?: 'uncategorized'
   onClick: () => void
 }
 
-function CategoryButton({ label, count, isActive, color, onClick }: CategoryButtonProps) {
+function CategoryButton({ label, count, isActive, color, icon, onClick }: CategoryButtonProps) {
   return (
     <button
       onClick={onClick}
@@ -157,7 +161,11 @@ function CategoryButton({ label, count, isActive, color, onClick }: CategoryButt
         ${isActive ? 'bg-stone-800 text-stone-100 font-medium' : 'hover:bg-stone-800/50 text-stone-400 hover:text-stone-200'}`}
     >
       <span className="flex items-center gap-3 min-w-0">
-        {color ? <Tag size={16} style={{ color }} className="shrink-0" /> : <LayoutGrid size={16} className="shrink-0" />}
+        {color
+          ? <Tag size={16} style={{ color }} className="shrink-0" />
+          : icon === 'uncategorized'
+            ? <CircleDashed size={16} className="shrink-0" />
+            : <LayoutGrid size={16} className="shrink-0" />}
         <span className="truncate">{label}</span>
       </span>
       <span className="text-xs text-stone-500 shrink-0">{count}</span>

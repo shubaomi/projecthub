@@ -1,4 +1,5 @@
 import { FileText } from 'lucide-react'
+import { getReadableReadmeExcerpt } from '../utils/readme'
 
 interface ReadmeExcerptProps {
   readme: string | null
@@ -6,15 +7,13 @@ interface ReadmeExcerptProps {
 }
 
 export function ReadmeExcerpt({ readme, maxLen = 200 }: ReadmeExcerptProps) {
-  if (!readme) return null
-
-  const text = readme.slice(0, maxLen)
-  const truncated = readme.length > maxLen ? text + '...' : text
+  const excerpt = getReadableReadmeExcerpt(readme, maxLen)
+  if (!excerpt) return null
 
   return (
     <div className="flex items-start gap-1.5 text-xs text-stone-500 mt-2 mb-2 line-clamp-2">
       <FileText size={12} className="mt-0.5 shrink-0" />
-      <span>{truncated}</span>
+      <span>{excerpt}</span>
     </div>
   )
 }

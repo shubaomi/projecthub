@@ -41,7 +41,8 @@ async function main() {
   }
 
   // Start backend
-  const backendEnv = { ...process.env, PORT: String(BACKEND_PORT) }
+  const quietEnv = { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' }
+  const backendEnv = { ...quietEnv, PORT: String(BACKEND_PORT) }
   const backend = spawn('npm', ['run', 'start'], {
     cwd: ROOT,
     env: backendEnv,
@@ -52,8 +53,9 @@ async function main() {
   backend.stderr.on('data', (data) => process.stderr.write(data))
 
   // Start frontend dev server
-  const frontend = spawn('npm', ['run', 'dev', '--', '--port', String(FRONTEND_PORT)], {
+  const frontend = spawn('npm', ['run', 'dev:frontend', '--', '--port', String(FRONTEND_PORT)], {
     cwd: ROOT,
+    env: quietEnv,
     stdio: 'pipe',
     shell: process.platform === 'win32'
   })

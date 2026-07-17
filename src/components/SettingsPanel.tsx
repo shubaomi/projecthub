@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'motion/react'
 import { useState, useEffect, type DragEvent } from 'react'
-import { X, Plus, Trash2, Palette, Globe, Pencil, Check, GripVertical } from 'lucide-react'
+import { X, Plus, Trash2, Palette, Pencil, Check, GripVertical } from 'lucide-react'
 import type { AppConfig, CategoryDefinition } from '../types'
 import { useI18n } from '../i18n'
 
@@ -32,22 +32,44 @@ export function SettingsPanel({ open, config, onClose, onSave }: SettingsPanelPr
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
 
   useEffect(() => {
-    if (config) {
-      setDirectories(config.scanDirectories)
-      setCustomCategories(config.customCategories)
-      if (config.language) setLang(config.language as 'en' | 'zh')
+    if (!open || !config) return
+    setDirectories([...config.scanDirectories])
+    setCustomCategories([...config.customCategories])
+    setNewDir('')
+    setNewCatName('')
+    setEditingCategoryId(null)
+    setEditName('')
+    setDragIndex(null)
+    setDragOverIndex(null)
+    setError(null)
+    if (config.language) setLang(config.language as 'en' | 'zh')
+  }, [open, config, setLang])
+
+  useEffect(() => {
+    if (!open) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      if (config?.language) setLang(config.language as 'en' | 'zh')
+      onClose()
     }
-  }, [config])
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [open, config?.language, onClose, setLang])
 
   if (!open) return null
 
-  const currentDirs = directories.length > 0 ? directories : (config?.scanDirectories || [])
+  const currentDirs = directories
+
+  function handleCancel() {
+    if (config?.language) setLang(config.language as 'en' | 'zh')
+    onClose()
+  }
 
   function handleAdd() {
     const trimmed = newDir.trim()
     if (!trimmed) return
     if (currentDirs.includes(trimmed)) {
-      setError('Directory already in list')
+      setError(t('settings.error.directoryExists'))
       return
     }
     setDirectories([...currentDirs, trimmed])
@@ -63,7 +85,7 @@ export function SettingsPanel({ open, config, onClose, onSave }: SettingsPanelPr
     const trimmed = newCatName.trim()
     if (!trimmed) return
     if (customCategories.some(c => c.name.toLowerCase() === trimmed.toLowerCase())) {
-      setError('Category already exists')
+      setError(t('settings.error.categoryExists'))
       return
     }
     const id = trimmed.toLowerCase().replace(/\s+/g, '-')
@@ -87,11 +109,11 @@ export function SettingsPanel({ open, config, onClose, onSave }: SettingsPanelPr
   function handleConfirmRename() {
     const trimmed = editName.trim()
     if (!trimmed) {
-      setError('Category name cannot be empty')
+      setError(t('settings.error.categoryNameEmpty'))
       return
     }
     if (customCategories.some(c => c.id !== editingCategoryId && c.name.toLowerCase() === trimmed.toLowerCase())) {
-      setError('Category already exists')
+      setError(t('settings.error.categoryExists'))
       return
     }
     setCustomCategories(customCategories.map(c =>
@@ -146,7 +168,7 @@ export function SettingsPanel({ open, config, onClose, onSave }: SettingsPanelPr
       })
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save')
+      setError(err instanceof Error ? err.message : t('settings.error.saveFailed'))
     } finally {
       setSaving(false)
     }
@@ -156,22 +178,26 @@ export function SettingsPanel({ open, config, onClose, onSave }: SettingsPanelPr
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/70 z-40 flex items-center justify-center" onClick={onClose}
+        className="fixed inset-0 bg-black/70 z-40 flex items-center justify-center p-4" onClick={handleCancel}
       >
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-          className="bg-stone-900 border-2 border-stone-600 rounded-2xl w-full max-w-lg p-6 z-50 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}
+          className="bg-stone-900 border border-stone-600 rounded-2xl w-full max-w-lg z-50 max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="settings-title"
         >
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-stone-100">{t('settings.title')}</h2>
-            <button onClick={onClose} className="p-2 hover:bg-stone-800 rounded-lg transition-colors text-stone-400 hover:text-stone-200">
+          <div className="flex items-center justify-between border-b border-stone-800 px-6 py-4">
+            <h2 id="settings-title" className="text-lg font-semibold text-stone-100">{t('settings.title')}</h2>
+            <button onClick={handleCancel} aria-label={t('settings.close')} className="p-2 hover:bg-stone-800 rounded-lg transition-colors text-stone-400 hover:text-stone-200">
               <X size={20} />
             </button>
           </div>
 
-          <div className="space-y-6">
-            {/* Scan Directories */}
-            <div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-6">
+            <div className="space-y-6">
+              {/* Scan Directories */}
+              <div>
               <p className="text-sm text-stone-300 mb-2">{t('settings.scanDirs')}</p>
               <p className="text-xs text-stone-500 mb-3">{t('settings.scanDirsHint')}</p>
 
@@ -179,7 +205,7 @@ export function SettingsPanel({ open, config, onClose, onSave }: SettingsPanelPr
                 {currentDirs.map((dir) => (
                   <div key={dir} className="flex items-center justify-between bg-stone-800 border border-stone-700 rounded-lg px-3 py-2">
                     <span className="text-sm text-stone-300 font-mono">{dir}</span>
-                    <button onClick={() => handleRemove(dir)} className="text-stone-500 hover:text-red-400 transition-colors p-1">
+                    <button onClick={() => handleRemove(dir)} aria-label={t('settings.removeDirectory', { name: dir })} className="text-stone-500 hover:text-red-400 transition-colors p-1">
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -200,10 +226,10 @@ export function SettingsPanel({ open, config, onClose, onSave }: SettingsPanelPr
                   <Plus size={16} /> {t('settings.add')}
                 </button>
               </div>
-            </div>
+              </div>
 
-            {/* Custom Categories */}
-            <div>
+              {/* Custom Categories */}
+              <div>
               <p className="text-sm text-stone-300 mb-2">{t('settings.customCategories')}</p>
               <p className="text-xs text-stone-500 mb-3">{t('settings.customCategoriesHint')}</p>
 
@@ -230,15 +256,18 @@ export function SettingsPanel({ open, config, onClose, onSave }: SettingsPanelPr
                           onChange={(e) => setEditName(e.target.value)}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') handleConfirmRename()
-                            if (e.key === 'Escape') handleCancelEdit()
+                            if (e.key === 'Escape') {
+                              e.stopPropagation()
+                              handleCancelEdit()
+                            }
                           }}
                           autoFocus
                           className="flex-1 bg-stone-700 border border-stone-600 rounded px-2 py-1 text-sm focus:outline-none focus:border-orange-500 text-stone-200"
                         />
-                        <button onClick={handleConfirmRename} className="text-stone-400 hover:text-green-400 transition-colors p-1">
+                        <button onClick={handleConfirmRename} aria-label={t('settings.confirmRename')} className="text-stone-400 hover:text-green-400 transition-colors p-1">
                           <Check size={14} />
                         </button>
-                        <button onClick={handleCancelEdit} className="text-stone-500 hover:text-stone-300 transition-colors p-1">
+                        <button onClick={handleCancelEdit} aria-label={t('settings.cancelRename')} className="text-stone-500 hover:text-stone-300 transition-colors p-1">
                           <X size={14} />
                         </button>
                       </div>
@@ -251,10 +280,10 @@ export function SettingsPanel({ open, config, onClose, onSave }: SettingsPanelPr
                           <span className="truncate">{cat.name}</span>
                         </span>
                         <div className="flex items-center gap-1 shrink-0">
-                          <button onClick={() => handleStartEdit(cat)} className="text-stone-500 hover:text-stone-300 transition-colors p-1">
+                          <button onClick={() => handleStartEdit(cat)} aria-label={t('settings.renameCategory', { name: cat.name })} className="text-stone-500 hover:text-stone-300 transition-colors p-1">
                             <Pencil size={14} />
                           </button>
-                          <button onClick={() => handleRemoveCategory(cat.id)} className="text-stone-500 hover:text-red-400 transition-colors p-1">
+                          <button onClick={() => handleRemoveCategory(cat.id)} aria-label={t('settings.removeCategory', { name: cat.name })} className="text-stone-500 hover:text-red-400 transition-colors p-1">
                             <Trash2 size={14} />
                           </button>
                         </div>
@@ -292,12 +321,12 @@ export function SettingsPanel({ open, config, onClose, onSave }: SettingsPanelPr
                   ))}
                 </div>
               </div>
-            </div>
+              </div>
 
-            {error && <p className="text-red-400 text-sm">{error}</p>}
+              {error && <p role="alert" className="text-red-400 text-sm">{error}</p>}
 
-            {/* Language */}
-            <div>
+              {/* Language */}
+              <div>
               <p className="text-sm text-stone-300 mb-2">{t('settings.language')}</p>
               <div className="flex gap-2">
                 <button
@@ -313,14 +342,16 @@ export function SettingsPanel({ open, config, onClose, onSave }: SettingsPanelPr
                   中文
                 </button>
               </div>
-            </div>
+              </div>
 
-            <div className="flex justify-end gap-3 pt-2">
-              <button onClick={onClose} className="px-4 py-2 text-sm text-stone-400 hover:text-stone-200 transition-colors">{t('settings.cancel')}</button>
-              <button onClick={handleSave} disabled={saving} className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-sm px-4 py-2 rounded-lg transition-colors">
-                {saving ? t('settings.saving') : t('settings.save')}
-              </button>
             </div>
+          </div>
+
+          <div className="flex shrink-0 justify-end gap-3 border-t border-stone-800 px-6 py-4">
+            <button onClick={handleCancel} className="px-4 py-2 text-sm text-stone-400 hover:text-stone-200 transition-colors">{t('settings.cancel')}</button>
+            <button onClick={handleSave} disabled={saving} className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-sm px-4 py-2 rounded-lg transition-colors">
+              {saving ? t('settings.saving') : t('settings.save')}
+            </button>
           </div>
         </motion.div>
       </motion.div>
